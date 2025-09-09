@@ -1,0 +1,517 @@
+openapi: 3.0.3
+info:
+  title: TourShop Backend API
+  version: 1.0.0
+  description: |
+    API pour Tour Shop Logistique SARL.
+    Documentation basée sur les vraies réponses des contrôleurs.
+servers:
+  - url: http://localhost:8000
+    description: Local dev
+  - url: https://tourshop.nport.link
+    description: Production (nport)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    # ===== SCHEMAS DE REQUÊTE =====
+    RegisterRequest:
+      type: object
+      required: [nom, prenoms, telephone, password, password_confirmation, type]
+      properties:
+        nom: { type: string, maxLength: 255 }
+        prenoms: { type: string, maxLength: 255 }
+        telephone: { type: string, description: "Format Côte d'Ivoire" }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 8 }
+        password_confirmation: { type: string, minLength: 8 }
+        type: { type: string, enum: [client, livreur, agence, backoffice] }
+
+    LoginRequest:
+      type: object
+      required: [password, type]
+      properties:
+        telephone: { type: string, description: "Requis si email absent" }
+        email:
+          {
+            type: string,
+            format: email,
+            description: "Requis si telephone absent",
+          }
+        password: { type: string }
+        type:
+          { type: string, enum: [client, livreur, admin, backoffice, agence] }
+
+    AgenceSetupRequest:
+      type: object
+      required:
+        [
+          nom_agence,
+          telephone,
+          adresse,
+          ville,
+          commune,
+          pays,
+          latitude,
+          longitude,
+        ]
+      properties:
+        nom_agence: { type: string, maxLength: 255 }
+        telephone:
+          {
+            type: string,
+            maxLength: 20,
+            description: "Numéro de téléphone de l'agence",
+          }
+        description:
+          {
+            type: string,
+            maxLength: 1000,
+            description: "Description de l'agence (optionnel)",
+          }
+        adresse: { type: string, maxLength: 255 }
+        ville: { type: string, maxLength: 255 }
+        commune: { type: string, maxLength: 255 }
+        pays: { type: string, maxLength: 255 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        horaires:
+          type: array
+          items:
+            type: object
+            required: [jour, ouverture, fermeture]
+            properties:
+              jour:
+                {
+                  type: string,
+                  enum:
+                    [lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche],
+                }
+              ouverture:
+                { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
+              fermeture:
+                { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
+
+    AgenceUpdateRequest:
+      type: object
+      properties:
+        nom_agence: { type: string, maxLength: 255 }
+        telephone: { type: string, maxLength: 20 }
+        description: { type: string, maxLength: 1000 }
+        adresse: { type: string, maxLength: 255 }
+        ville: { type: string, maxLength: 255 }
+        commune: { type: string, maxLength: 255 }
+        pays: { type: string, maxLength: 255 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        horaires:
+          type: array
+          items:
+            type: object
+            properties:
+              jour: { type: string }
+              ouverture: { type: string }
+              fermeture: { type: string }
+
+    CreateUserRequest:
+      type: object
+      required: [nom, prenoms, telephone, password, password_confirmation, type]
+      properties:
+        nom: { type: string, maxLength: 255 }
+        prenoms: { type: string, maxLength: 255 }
+        telephone: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 8 }
+        password_confirmation: { type: string, minLength: 8 }
+        type: { type: string, enum: [livreur, agence, backoffice] }
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        nom: { type: string, maxLength: 255 }
+        prenoms: { type: string, maxLength: 255 }
+        telephone: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 8 }
+        type: { type: string, enum: [livreur, agence, backoffice] }
+
+    # ===== SCHEMAS DE RÉPONSE =====
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        prenoms: { type: string }
+        telephone: { type: string }
+        email: { type: string, format: email }
+        type: { type: string, enum: [client, livreur, agence, backoffice] }
+        actif: { type: boolean }
+        agence_id: { type: string, format: uuid }
+        role: { type: string, example: "is_agence_admin" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Agence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        nom_agence: { type: string }
+        telephone: { type: string }
+        description: { type: string }
+        adresse: { type: string }
+        ville: { type: string }
+        commune: { type: string }
+        pays: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        horaires:
+          type: array
+          items:
+            type: object
+            properties:
+              jour:
+                {
+                  type: string,
+                  enum:
+                    [lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche],
+                }
+              ouverture:
+                { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
+              fermeture:
+                { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    UserAgence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nom: { type: string }
+        prenoms: { type: string }
+        telephone: { type: string }
+        email: { type: string, format: email }
+        type: { type: string }
+        actif: { type: boolean }
+        role: { type: string, example: "is_agence_admin" }
+        agence_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+
+paths:
+  # ===== AUTHENTIFICATION =====
+  /api/register:
+    post:
+      tags: [Auth]
+      summary: Inscription d'un utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+            example:
+              nom: "Kouassi"
+              prenoms: "Jean"
+              telephone: "0712345678"
+              email: "jean@example.com"
+              password: "motdepasse123"
+              password_confirmation: "motdepasse123"
+              type: "agence"
+      responses:
+        "201":
+          description: Inscription réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Inscription réussie" }
+                  user: { $ref: "#/components/schemas/User" }
+                  token: { type: string, description: "Token Sanctum" }
+
+  /api/login:
+    post:
+      tags: [Auth]
+      summary: Connexion utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example:
+              telephone: "0712345678"
+              password: "motdepasse123"
+              type: "agence"
+      responses:
+        "200":
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Connexion réussie" }
+                  user: { $ref: "#/components/schemas/User" }
+                  token: { type: string, description: "Token Sanctum" }
+
+  /api/logout:
+    post:
+      tags: [Auth]
+      summary: Déconnexion
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Déconnexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Déconnexion réussie." }
+
+  /api/profil:
+    get:
+      tags: [Auth]
+      summary: Profil utilisateur authentifié
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profil récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  user: { $ref: "#/components/schemas/User" }
+                  role: { type: string, example: "is_client" }
+
+  # ===== AGENCE SETUP =====
+  /api/agence/setup:
+    post:
+      tags: [Agence]
+      summary: "Configurer une nouvelle agence"
+      description: "Crée une nouvelle agence et rattache l'utilisateur authentifié comme administrateur."
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgenceSetupRequest" }
+            example:
+              nom_agence: "TourShop Express"
+              telephone: "+2250700000001"
+              description: "Agence de livraison express"
+              adresse: "Cocody Angré 8e tranche"
+              ville: "Abidjan"
+              commune: "Cocody"
+              pays: "Côte d'Ivoire"
+              latitude: 5.336318
+              longitude: -4.027751
+              horaires:
+                - jour: "lundi"
+                  ouverture: "08:00"
+                  fermeture: "18:00"
+                - jour: "mardi"
+                  ouverture: "08:00"
+                  fermeture: "18:00"
+                - jour: "mercredi"
+                  ouverture: "08:00"
+                  fermeture: "18:00"
+                - jour: "jeudi"
+                  ouverture: "08:00"
+                  fermeture: "18:00"
+                - jour: "vendredi"
+                  ouverture: "08:00"
+                  fermeture: "18:00"
+                - jour: "samedi"
+                  ouverture: "08:00"
+                  fermeture: "12:00"
+      responses:
+        "201":
+          description: "Agence créée avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message:
+                    { type: string, example: "Agence configurée avec succès." }
+                  agence: { $ref: "#/components/schemas/Agence" }
+
+  /api/agence/show:
+    get:
+      tags: [Agence]
+      summary: "Afficher les informations de l'agence"
+      description: "Récupère les informations de l'agence de l'utilisateur connecté."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Informations de l'agence récupérées avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  agence: { $ref: "#/components/schemas/Agence" }
+
+  /api/agence/update:
+    put:
+      tags: [Agence]
+      summary: "Mettre à jour les informations de l'agence"
+      description: "Met à jour les informations de l'agence de l'utilisateur connecté."
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgenceUpdateRequest" }
+      responses:
+        "200":
+          description: "Agence mise à jour avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message:
+                    {
+                      type: string,
+                      example: "Profil de l'agence mis à jour avec succès.",
+                    }
+                  agence: { $ref: "#/components/schemas/Agence" }
+
+  # ===== GESTION UTILISATEURS AGENCE =====
+  /api/agence/list-users:
+    get:
+      tags: [Agence]
+      summary: "Lister les utilisateurs de l'agence"
+      description: "Liste tous les utilisateurs rattachés à l'agence."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Liste des utilisateurs récupérée avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/UserAgence" }
+                  agence:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom_agence: { type: string, example: "TourShop Express" }
+                      admin_id: { type: string, format: uuid }
+
+  /api/agence/create-user:
+    post:
+      tags: [Agence]
+      summary: "Créer un nouvel utilisateur pour l'agence"
+      description: "Crée un nouvel utilisateur rattaché à l'agence."
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+            example:
+              nom: "Dupont"
+              prenoms: "Jean"
+              telephone: "+2250700000002"
+              email: "jean.dupont@example.com"
+              password: "MotDePasse123!"
+              password_confirmation: "MotDePasse123!"
+              type: "agence"
+      responses:
+        "201":
+          description: "Utilisateur créé avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message:
+                    { type: string, example: "Utilisateur créé avec succès." }
+                  user: { $ref: "#/components/schemas/UserAgence" }
+
+  /api/agence/edit-user/{user}:
+    parameters:
+      - name: user
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+        description: ID de l'utilisateur à modifier
+    put:
+      tags: [Agence]
+      summary: "Mettre à jour un utilisateur de l'agence"
+      description: "Met à jour les informations d'un utilisateur de l'agence."
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200":
+          description: "Utilisateur mis à jour avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message:
+                    {
+                      type: string,
+                      example: "Utilisateur mis à jour avec succès.",
+                    }
+                  user: { $ref: "#/components/schemas/UserAgence" }
+
+  /api/agence/edit-status-user/{user}:
+    parameters:
+      - name: user
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+        description: ID de l'utilisateur à supprimer
+    put:
+      tags: [Agence]
+      summary: "Activer ou désactiver un utilisateur de l'agence"
+      description: "Change l'état d'un utilisateur de l'agence."
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: "Utilisateur désactivé avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message:
+                    {
+                      type: string,
+                      example: "Utilisateur désactivé avec succès.",
+                    }
