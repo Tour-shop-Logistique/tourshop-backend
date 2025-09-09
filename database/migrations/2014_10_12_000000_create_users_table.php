@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->foreignUuid('agence_id')->constrained('agence')->onDelete('set null')->onUpdate('cascade')->nullable();
             $table->string('nom');
             $table->string('prenoms');
             $table->string('telephone')->unique();
@@ -20,9 +21,8 @@ return new class extends Migration
             $table->string('avatar')->nullable();
             $table->json('adresses_favoris')->nullable(); // Pour clients
             $table->boolean('disponible')->default(true); // Pour livreurs
-            $table->decimal('latitude', 10, 8)->nullable();
-            $table->decimal('longitude', 11, 8)->nullable();
             $table->boolean('actif')->default(true);
+            $table->string('role');
             $table->rememberToken();
             $table->timestamps();
         });

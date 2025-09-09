@@ -10,12 +10,12 @@ return new class extends Migration
     {
         Schema::create('agences', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUuid('user_id')->constrained('users')->onDelete('set null')->onUpdate('cascade');
             $table->string('nom_agence');
             $table->text('description')->nullable();
             $table->string('adresse');
             $table->string('ville');
-            $table->string('commune');
+            $table->string('commune')->nullable();
             $table->string('pays');
             $table->string('telephone', 20)->nullable();
             $table->decimal('latitude', 10, 8);
@@ -24,7 +24,6 @@ return new class extends Migration
             $table->json('photos')->nullable();
             $table->boolean('actif')->default(true);
             $table->text('message_accueil')->nullable();
-            $table->json('promotions')->nullable();
             $table->timestamps();
         });
     }

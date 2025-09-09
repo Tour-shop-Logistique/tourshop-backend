@@ -110,7 +110,7 @@ class AgenceUserController extends Controller
                 'email' => $request->email,
                 'type' => UserType::from($request->type),
                 'password' => Hash::make($request->password),
-                'agence_id' => $agence->id, // Rattacher à l'agence de l'admin
+                'agence_id' => $agence->id,
                 'actif' => true,
                 'role' => $roleInfo
             ]);
