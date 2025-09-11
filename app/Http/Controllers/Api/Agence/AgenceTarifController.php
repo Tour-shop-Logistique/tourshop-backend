@@ -23,7 +23,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -39,7 +39,7 @@ class AgenceTarifController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur liste tarifs agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -53,7 +53,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -95,7 +95,7 @@ class AgenceTarifController extends Controller
             ], 422);
         } catch (Exception $e) {
             Log::error('Erreur création tarif agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -109,7 +109,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -126,7 +126,7 @@ class AgenceTarifController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur affichage tarif agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -140,7 +140,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -177,7 +177,7 @@ class AgenceTarifController extends Controller
             ], 422);
         } catch (Exception $e) {
             Log::error('Erreur mise à jour tarif agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -191,7 +191,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -210,7 +210,7 @@ class AgenceTarifController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur suppression tarif agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -224,7 +224,7 @@ class AgenceTarifController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -244,7 +244,7 @@ class AgenceTarifController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur toggle statut tarif agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 }

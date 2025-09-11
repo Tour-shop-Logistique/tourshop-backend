@@ -32,12 +32,12 @@ class AuthController extends Controller
             ]);
 
             // Préparer les informations de rôle pour le frontend
-            $roleInfo = match ($request->type) {
+            $roleInfo = match (UserType::from($request->type)) {
                 UserType::AGENCE => 'is_agence_admin',
                 UserType::CLIENT => 'is_client',
                 UserType::LIVREUR => 'is_livreur',
                 UserType::BACKOFFICE => 'is_backoffice_admin',
-                default => 'unknown_role',
+                default => 'is_user',
             };
 
             // Crée le nouvel utilisateur
@@ -52,7 +52,7 @@ class AuthController extends Controller
             ]);
 
             // Génère un jeton d'accès pour l'API pour le nouvel utilisateur
-            $token = $user->createToken($user->type->value . '_token')->plainTextToken;
+            $token = $user->createToken($user->type->value . '_token_tour_shop')->plainTextToken;
 
             // Retourne une réponse de succès avec les infos de l'utilisateur et le jeton
             return response()->json([
@@ -75,6 +75,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de l\'inscription. Veuillez réessayer ultérieurement.',
+                'errors' => $e->getMessage()
             ], 500); // Statut HTTP 500 Internal Server Error
         }
     }
@@ -119,7 +120,7 @@ class AuthController extends Controller
             // $user->tokens()->delete();
 
             // Génère un nouveau jeton d'accès
-            $token = $user->createToken($user->type->value . '_token')->plainTextToken;
+            $token = $user->createToken($user->type->value . '_token_tour_shop')->plainTextToken;
 
             // Retourne une réponse de succès avec les infos de l'utilisateur et le nouveau jeton
             return response()->json([
@@ -141,7 +142,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la connexion. Veuillez réessayer ultérieurement.',
-                // 'error_details' => $e->getMessage() // À décommenter pour le débogage seulement
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -172,7 +173,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la déconnexion. Veuillez réessayer ultérieurement.',
-                // 'error_details' => $e->getMessage() // À décommenter pour le débogage seulement
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -204,7 +205,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la récupération du profil. Veuillez réessayer ultérieurement.',
-                // 'error_details' => $e->getMessage() // À décommenter pour le débogage seulement
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -265,7 +266,8 @@ class AuthController extends Controller
             Log::error('Erreur lors de la récupération des informations de rôle : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur inattendue est survenue.'
+                'message' => 'Une erreur inattendue est survenue.',
+                'errors' => $e->getMessage()
             ], 500);
         }
     }

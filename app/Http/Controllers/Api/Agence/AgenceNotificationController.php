@@ -22,7 +22,7 @@ class AgenceNotificationController extends Controller
             if ($user->type !== UserType::AGENCE) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
+
             $agence = Agence::where('user_id', $user->id)->first();
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
@@ -67,7 +67,7 @@ class AgenceNotificationController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur liste notifications agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -84,14 +84,14 @@ class AgenceNotificationController extends Controller
 
             // Dans une vraie implémentation, vous mettriez à jour la base de données
             // Pour l'instant, on simule juste une réponse de succès
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Notification marquée comme lue.'
             ]);
         } catch (Exception $e) {
             Log::error('Erreur marquer notification lue : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -107,14 +107,14 @@ class AgenceNotificationController extends Controller
             }
 
             // Dans une vraie implémentation, vous mettriez à jour toutes les notifications
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Toutes les notifications ont été marquées comme lues.'
             ]);
         } catch (Exception $e) {
             Log::error('Erreur marquer toutes notifications lues : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -130,14 +130,14 @@ class AgenceNotificationController extends Controller
             }
 
             // Dans une vraie implémentation, vous supprimeriez la notification de la base de données
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Notification supprimée.'
             ]);
         } catch (Exception $e) {
             Log::error('Erreur suppression notification : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 }

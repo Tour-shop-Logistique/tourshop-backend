@@ -136,7 +136,9 @@ components:
         telephone: { type: string }
         email: { type: string, format: email, maxLength: 255 }
         password: { type: string, minLength: 8 }
+        password_confirmation: { type: string, minLength: 8 }
         type: { type: string, enum: [livreur, agence, backoffice] }
+        actif: { type: boolean }
 
     # ===== SCHEMAS DE RÉPONSE =====
     User:
@@ -196,7 +198,7 @@ components:
         email: { type: string, format: email }
         type: { type: string }
         actif: { type: boolean }
-        role: { type: string, example: "is_agence_admin" }
+        role: { type: string, example: "is_agence_member" }
         agence_id: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
 
@@ -487,31 +489,3 @@ paths:
                       example: "Utilisateur mis à jour avec succès.",
                     }
                   user: { $ref: "#/components/schemas/UserAgence" }
-
-  /api/agence/edit-status-user/{user}:
-    parameters:
-      - name: user
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-        description: ID de l'utilisateur à supprimer
-    put:
-      tags: [Agence]
-      summary: "Activer ou désactiver un utilisateur de l'agence"
-      description: "Change l'état d'un utilisateur de l'agence."
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: "Utilisateur désactivé avec succès"
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: { type: boolean, example: true }
-                  message:
-                    {
-                      type: string,
-                      example: "Utilisateur désactivé avec succès.",
-                    }

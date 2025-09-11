@@ -83,7 +83,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/list-users', [AgenceUserController::class, 'listUser']);
         Route::post('/create-user', [AgenceUserController::class, 'createUser']);
         Route::put('/edit-user/{user}', [AgenceUserController::class, 'editUser']);
-        Route::put('/edit-status-user/{user}', [AgenceUserController::class, 'editStatusUser']);
 
 
         // Tableau de bord et statistiques

@@ -40,13 +40,12 @@ class Agence extends Model
         'photos',
         'actif',
         'message_accueil',
-        'promotions'
+        'type'
     ];
 
     protected $casts = [
         'horaires' => 'array',
         'photos' => 'array',
-        'promotions' => 'array',
         'actif' => 'boolean',
     ];
 

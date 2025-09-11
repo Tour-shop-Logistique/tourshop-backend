@@ -39,8 +39,8 @@ class AgenceUserController extends Controller
                 ], 404);
             }
 
-            // Récupérer tous les utilisateurs de l'agence (y compris l'admin)
-            $users = $agence->users()->select('id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'created_at')->get();
+            // Récupérer tous les utilisateurs de l'agence (sauf l'admin)
+            $users = $agence->users()->where('id', '!=', $agence->user_id)->select('id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'role', 'agence_id', 'created_at')->get();
 
             return response()->json([
                 'success' => true,
@@ -55,7 +55,8 @@ class AgenceUserController extends Controller
             Log::error('Erreur liste utilisateurs agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur serveur.'
+                'message' => 'Erreur serveur.',
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -96,10 +97,10 @@ class AgenceUserController extends Controller
             ]);
 
             // Préparer les informations de rôle pour le frontend
-            $roleInfo = match ($request->type) {
+            $roleInfo = match (UserType::from($request->type)) {
                 UserType::AGENCE => 'is_agence_member',
                 UserType::LIVREUR => 'is_livreur',
-                default => 'unknown_role',
+                default => 'is_user',
             };
 
             // Créer l'utilisateur rattaché à l'agence
@@ -130,7 +131,8 @@ class AgenceUserController extends Controller
             Log::error('Erreur création utilisateur agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur inattendue est survenue lors de la création de l\'utilisateur.'
+                'message' => 'Une erreur inattendue est survenue lors de la création de l\'utilisateur.',
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -184,10 +186,11 @@ class AgenceUserController extends Controller
                 'email' => ['sometimes', 'nullable', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
                 'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
                 'type' => ['sometimes', 'in:livreur,agence,backoffice'],
+                'actif' => ['sometimes', 'boolean'],
             ]);
 
             // Mettre à jour les champs fournis
-            $updateData = $request->only(['nom', 'prenoms', 'telephone', 'email']);
+            $updateData = $request->only(['nom', 'prenoms', 'telephone', 'email', 'actif']);
 
             if ($request->has('type')) {
                 $updateData['type'] = UserType::from($request->type);
@@ -214,67 +217,8 @@ class AgenceUserController extends Controller
             Log::error('Erreur modification utilisateur agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur inattendue est survenue lors de la modification de l\'utilisateur.'
-            ], 500);
-        }
-    }
-
-    /**
-     * Supprime/désactive un utilisateur de l'agence.
-     * Réservé à l'admin créateur de l'agence.
-     */
-    public function editStatusUser(Request $request, User $user)
-    {
-        try {
-            $adminUser = $request->user();
-
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut supprimer les utilisateurs.'
-                ], 403);
-            }
-
-            $agence = $adminUser->agence;
-            if (!$agence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Agence introuvable.'
-                ], 404);
-            }
-
-            // Vérifier que l'utilisateur à supprimer appartient à la même agence
-            if ($user->agence_id !== $agence->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
-                ], 403);
-            }
-
-            // Empêcher la suppression de l'admin créateur
-            if ($user->id === $agence->user_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer l\'administrateur créateur de l\'agence.'
-                ], 422);
-            }
-
-            // Désactiver l'utilisateur au lieu de le supprimer (soft delete logique)
-            $user->update(['actif' => false]);
-
-            // Optionnel: révoquer tous ses tokens d'accès
-            $user->tokens()->delete();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Utilisateur désactivé avec succès.'
-            ]);
-        } catch (Exception $e) {
-            Log::error('Erreur suppression utilisateur agence : ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Une erreur inattendue est survenue lors de la suppression de l\'utilisateur.'
+                'message' => 'Une erreur inattendue est survenue lors de la modification de l\'utilisateur.',
+                'errors' => $e->getMessage()
             ], 500);
         }
     }

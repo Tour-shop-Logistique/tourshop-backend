@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('agences', function (Blueprint $table) {
             // Type d'agence: mere ou partenaire
-            $table->enum('type', ['mere', 'partenaire'])->default('partenaire')->after('promotions');
+            $table->enum('type', ['mere', 'partenaire'])->default('partenaire')->after('description');
             // Agence mère (hiérarchie), nullable
             $table->foreignUuid('agence_mere_id')->nullable()->after('type')->constrained('agences')->nullOnDelete();
         });

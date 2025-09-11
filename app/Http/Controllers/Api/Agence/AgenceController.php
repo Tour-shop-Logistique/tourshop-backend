@@ -26,6 +26,14 @@ class AgenceController extends Controller
         try {
             $user = $request->user();
 
+            // Vérifier que l'utilisateur existe bien en base
+            if (!$user || !$user->exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé ou session expirée.'
+                ], 401);
+            }
+
             // Vérifie si l'utilisateur authentifié est bien de type 'agence'
             if ($user->type !== UserType::AGENCE) {
                 return response()->json([
@@ -50,15 +58,24 @@ class AgenceController extends Controller
                 'description' => ['nullable', 'string', 'max:1000'],
                 'adresse' => ['required', 'string', 'max:255'],
                 'ville' => ['required', 'string', 'max:255'],
-                'commune' => ['required', 'string', 'max:255'],
+                'commune' => ['nullable', 'string', 'max:255'],
                 'pays' => ['required', 'string', 'max:255'],
                 'latitude' => ['required', 'numeric', 'between:-90,90'],
                 'longitude' => ['required', 'numeric', 'between:-180,180'],
-                'horaires' => ['nullable', 'array'],
+                'horaires' => ['nullable'],
                 'horaires.*.jour' => ['required_with:horaires', 'string', 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche'],
                 'horaires.*.ouverture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
                 'horaires.*.fermeture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
             ]);
+
+            // Normaliser le champ horaires (accepter array ou JSON string)
+            $horaires = $request->input('horaires');
+            if (is_string($horaires)) {
+                $decoded = json_decode($horaires, true);
+                $horaires = is_array($decoded) ? $decoded : [];
+            } elseif (!is_array($horaires)) {
+                $horaires = [];
+            }
 
             // Crée l'agence
             $agence = Agence::create([
@@ -72,7 +89,7 @@ class AgenceController extends Controller
                 'pays' => $request->pays,
                 'latitude' => $request->latitude,
                 'longitude' => $request->longitude,
-                'horaires' => $request->horaires ?? [],
+                'horaires' => $horaires,
             ]);
 
             // Rattache l'utilisateur créateur à l'agence créée
@@ -94,7 +111,8 @@ class AgenceController extends Controller
             Log::error('Erreur lors de la configuration de l\'agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur inattendue est survenue lors de la configuration de l\'agence.'
+                'message' => 'Une erreur inattendue est survenue lors de la configuration de l\'agence.',
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -124,6 +142,7 @@ class AgenceController extends Controller
                     'message' => 'Aucune agence rattachée à cet utilisateur.'
                 ], 404);
             }
+
             $agence = Agence::find($user->agence_id);
 
             // Si aucune agence n'est trouvée pour cet utilisateur
@@ -145,7 +164,7 @@ class AgenceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la récupération du profil agence. Veuillez réessayer ultérieurement.',
-                // 'error_details' => $e->getMessage() // À décommenter pour le débogage seulement
+                'errors' => $e->getMessage()
             ], 500); // Statut HTTP 500 Internal Server Error
         }
     }
@@ -186,14 +205,26 @@ class AgenceController extends Controller
                 'adresse' => ['sometimes', 'string', 'max:255'],
                 'ville' => ['sometimes', 'string', 'max:255'],
                 'commune' => ['sometimes', 'string', 'max:255'],
-                'pays' => ['required', 'string', 'max:255'],
+                'pays' => ['string', 'max:255'],
                 'latitude' => ['sometimes', 'numeric', 'between:-90,90'],
                 'longitude' => ['sometimes', 'numeric', 'between:-180,180'],
-                'horaires' => ['sometimes', 'array'], // Les horaires peuvent être un tableau d'objets JSON
+                'horaires' => ['sometimes'], // peut être un array ou une chaîne JSON
                 'horaires.*.jour' => ['required_with:horaires', 'string'],
                 'horaires.*.ouverture' => ['required_with:horaires', 'string'],
                 'horaires.*.fermeture' => ['required_with:horaires', 'string'],
             ]);
+
+            // Normaliser horaires si fourni dans la requête de mise à jour
+            if ($request->has('horaires')) {
+                $h = $request->input('horaires');
+                if (is_string($h)) {
+                    $decoded = json_decode($h, true);
+                    $h = is_array($decoded) ? $decoded : [];
+                } elseif (!is_array($h)) {
+                    $h = [];
+                }
+                $request->merge(['horaires' => $h]);
+            }
 
             // Met à jour l'agence avec les données validées
             $agence->update($request->all());
@@ -217,7 +248,7 @@ class AgenceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la mise à jour du profil agence. Veuillez réessayer ultérieurement.',
-                // 'error_details' => $e->getMessage() // À décommenter pour le débogage seulement
+                'errors' => $e->getMessage()
             ], 500);
         }
     }
@@ -298,7 +329,7 @@ class AgenceController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur dashboard agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -360,7 +391,7 @@ class AgenceController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur statistiques agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -396,7 +427,7 @@ class AgenceController extends Controller
             ]);
         } catch (Exception $e) {
             Log::error('Erreur liste livreurs : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 

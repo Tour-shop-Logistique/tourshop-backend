@@ -42,9 +42,8 @@ class User extends Authenticatable
         'avatar',
         'adresses_favoris',
         'disponible',
-        'latitude',
-        'longitude',
         'actif',
+        'role',
         // Rattachement à une agence
         'agence_id',
     ];

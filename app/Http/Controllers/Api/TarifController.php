@@ -33,10 +33,9 @@ class TarifController extends Controller
             $tarifs = Tarif::where('agence_id', $agence->id)->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs->toArray()]);
-
         } catch (Exception $e) {
             Log::error('Erreur index tarifs: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la récupération des tarifs.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la récupération des tarifs.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -88,12 +87,11 @@ class TarifController extends Controller
             ]);
 
             return response()->json(['success' => true, 'message' => 'Tarif créé avec succès.', 'tarif' => $tarif->toArray()], 201);
-
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
             Log::error('Erreur store tarif: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la création du tarif.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la création du tarif.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -111,10 +109,9 @@ class TarifController extends Controller
             }
 
             return response()->json(['success' => true, 'tarif' => $tarif->toArray()]);
-
         } catch (Exception $e) {
             Log::error('Erreur show tarif: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de l\'affichage du tarif.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de l\'affichage du tarif.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -149,12 +146,11 @@ class TarifController extends Controller
             $tarif->update($request->all());
 
             return response()->json(['success' => true, 'message' => 'Tarif mis à jour avec succès.', 'tarif' => $tarif->toArray()]);
-
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
             Log::error('Erreur update tarif: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la mise à jour du tarif.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la mise à jour du tarif.', 'errors' => $e->getMessage()], 500);
         }
     }
 
@@ -174,10 +170,9 @@ class TarifController extends Controller
             $tarif->delete();
 
             return response()->json(['success' => true, 'message' => 'Tarif supprimé avec succès.'], 200);
-
         } catch (Exception $e) {
             Log::error('Erreur destroy tarif: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la suppression du tarif.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur inattendue lors de la suppression du tarif.', 'errors' => $e->getMessage()], 500);
         }
     }
 }
