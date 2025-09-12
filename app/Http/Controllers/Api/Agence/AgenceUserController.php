@@ -18,7 +18,7 @@ class AgenceUserController extends Controller
      * Liste les utilisateurs de l'agence.
      * Réservé à l'admin créateur de l'agence.
      */
-    public function listUser(Request $request)
+    public function listUsers(Request $request)
     {
         try {
             $user = $request->user();

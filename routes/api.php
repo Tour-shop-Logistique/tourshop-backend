@@ -80,7 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/update', [AgenceController::class, 'updateAgence']);
 
         // Gestion des utilisateurs de l'agence (réservé à l'admin créateur)
-        Route::get('/list-users', [AgenceUserController::class, 'listUser']);
+        Route::get('/list-users', [AgenceUserController::class, 'listUsers']);
         Route::post('/create-user', [AgenceUserController::class, 'createUser']);
         Route::put('/edit-user/{user}', [AgenceUserController::class, 'editUser']);
 
@@ -109,22 +109,19 @@ Route::middleware('auth:sanctum')->group(function () {
         // Route::delete('/notifications/{notificationId}', [AgenceNotificationController::class, 'supprimer']);
 
         // Gestion des tarifs de l'agence
-        // Route::get('/tarifs', [AgenceTarifController::class, 'index']);
-        // Route::post('/tarifs', [AgenceTarifController::class, 'store']);
-        // Route::get('/tarifs/{tarif}', [AgenceTarifController::class, 'show']);
-        // Route::put('/tarifs/{tarif}', [AgenceTarifController::class, 'update']);
-        // Route::delete('/tarifs/{tarif}', [AgenceTarifController::class, 'destroy']);
-        // Route::put('/tarifs/{tarif}/toggle-status', [AgenceTarifController::class, 'toggleStatus']);
+        Route::get('/list-tarifs', [AgenceTarifController::class, 'listTarifs']);
+        Route::post('/create-tarif', [AgenceTarifController::class, 'createTarif']);
+        Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'showTarif']);
+        Route::put('/update-tarif/{tarif}', [AgenceTarifController::class, 'updateTarif']);
+        Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'deleteTarif']);
+        Route::put('/toggle-status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
     });
 
-    // Routes tarifs
-    /*Route::prefix('tarifs')->group(function () {
-        Route::get('/index', [TarifController::class, 'index']);  // Lister tous les tarifs
-        Route::post('/store', [TarifController::class, 'store']);  // Créer un nouveau tarif
-        Route::get('/show/{tarif}', [TarifController::class, 'show']);  // Afficher un tarif spécifique
-        Route::put('/update/{tarif}', [TarifController::class, 'update']);  // Mettre à jour un tarif spécifique
-        Route::delete('/destroy/{tarif}', [TarifController::class, 'destroy']);  // Supprimer un tarif spécifique
-    });*/
+    // Routes simulation tarification
+    Route::prefix('tarification')->group(function () {
+        Route::post('/simuler', [TarificationController::class, 'simuler']);
+        Route::get('/zones-disponibles', [TarificationController::class, 'zonesDisponibles']);
+    });
 
     // Routes admin
     Route::prefix('admin')->group(function () {

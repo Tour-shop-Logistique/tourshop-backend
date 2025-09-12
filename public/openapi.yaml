@@ -202,6 +202,23 @@ components:
         agence_id: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
 
+    Tarif:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        agence_id: { type: string, format: uuid }
+        nom: { type: string }
+        mode_expedition: { type: string, enum: [simple, groupage] }
+        description: { type: string }
+        prix_base: { type: number }
+        prix_par_kg: { type: number }
+        prix_par_km: { type: number }
+        zone_couverture: { type: number }
+        delai_livraison: { type: integer }
+        actif: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
 paths:
   # ===== AUTHENTIFICATION =====
   /api/register:
@@ -399,7 +416,7 @@ paths:
   # ===== GESTION UTILISATEURS AGENCE =====
   /api/agence/list-users:
     get:
-      tags: [Agence]
+      tags: [Agence - Users]
       summary: "Lister les utilisateurs de l'agence"
       description: "Liste tous les utilisateurs rattachés à l'agence."
       security:
@@ -425,7 +442,7 @@ paths:
 
   /api/agence/create-user:
     post:
-      tags: [Agence]
+      tags: [Agence - Users]
       summary: "Créer un nouvel utilisateur pour l'agence"
       description: "Crée un nouvel utilisateur rattaché à l'agence."
       security:
@@ -464,7 +481,7 @@ paths:
         schema: { type: string, format: uuid }
         description: ID de l'utilisateur à modifier
     put:
-      tags: [Agence]
+      tags: [Agence - Users]
       summary: "Mettre à jour un utilisateur de l'agence"
       description: "Met à jour les informations d'un utilisateur de l'agence."
       security:
@@ -489,3 +506,220 @@ paths:
                       example: "Utilisateur mis à jour avec succès.",
                     }
                   user: { $ref: "#/components/schemas/UserAgence" }
+
+  # ===== ROUTES TARIFICATION AGENCE =====
+  # /api/agences/list-tarifs:
+  #   get:
+  #     tags: [Agence - Tarifs]
+  #     summary: "Lister tous les tarifs de l'agence"
+  #     description: "Récupère la liste de tous les tarifs créés par l'agence."
+  #     security:
+  #       - bearerAuth: []
+  #     responses:
+  #       "200":
+  #         description: "Liste des tarifs récupérée avec succès"
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 success: { type: boolean, example: true }
+  #                 tarifs:
+  #                   type: array
+  #                   items: { $ref: "#/components/schemas/Tarif" }
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "404":
+  #         $ref: "#/components/responses/NotFound"
+  #       "500":
+  #         $ref: "#/components/responses/ServerError"
+
+  /api/agences/create-tarif:
+    post:
+      tags: [Agence - Tarifs]
+      summary: "Créer un nouveau tarif"
+      description: "Crée un nouveau tarif pour l'agence."
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nom, mode_expedition, prix_base]
+              properties:
+                nom:
+                  { type: string, maxLength: 255, example: "Livraison Express" }
+                mode_expedition:
+                  { type: string, enum: [simple, groupage], example: "simple" }
+                description:
+                  {
+                    type: string,
+                    maxLength: 1000,
+                    example: "Livraison rapide en moins de 24h",
+                  }
+                prix_base: { type: number, minimum: 0, example: 2500 }
+                prix_par_kg: { type: number, minimum: 0, example: 500 }
+                prix_par_km: { type: number, minimum: 0, example: 100 }
+                zone_couverture: { type: number, minimum: 0, example: 50 }
+                delai_livraison: { type: integer, minimum: 1, example: 24 }
+                actif: { type: boolean, example: true }
+      responses:
+        "201":
+          description: "Tarif créé avec succès"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Tarif créé avec succès." }
+                  tarif: { $ref: "#/components/schemas/Tarif" }
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  # /api/agences/show-tarif/{tarif}:
+  #   parameters:
+  #     - name: tarif
+  #       in: path
+  #       required: true
+  #       schema: { type: string, format: uuid }
+  #       description: ID du tarif à afficher
+  #   get:
+  #     tags: [Agence - Tarifs]
+  #     summary: "Afficher un tarif spécifique"
+  #     description: "Récupère les détails d'un tarif spécifique de l'agence."
+  #     security:
+  #       - bearerAuth: []
+  #     responses:
+  #       "200":
+  #         description: "Tarif récupéré avec succès"
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 success: { type: boolean, example: true }
+  #                 tarif: { $ref: "#/components/schemas/Tarif" }
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "404":
+  #         $ref: "#/components/responses/NotFound"
+  #       "500":
+  #         $ref: "#/components/responses/ServerError"
+
+  # /api/agences/update-tarif/{tarif}:
+  #   parameters:
+  #     - name: tarif
+  #       in: path
+  #       required: true
+  #       schema: { type: string, format: uuid }
+  #       description: ID du tarif à mettre à jour
+  #   put:
+  #     tags: [Agence - Tarifs]
+  #     summary: "Mettre à jour un tarif"
+  #     description: "Met à jour les informations d'un tarif existant."
+  #     security:
+  #       - bearerAuth: []
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             type: object
+  #             properties:
+  #               nom: { type: string, maxLength: 255 }
+  #               description: { type: string, maxLength: 1000 }
+  #               prix_base: { type: number, minimum: 0 }
+  #               prix_par_kg: { type: number, minimum: 0 }
+  #               prix_par_km: { type: number, minimum: 0 }
+  #               zone_couverture: { type: number, minimum: 0 }
+  #               delai_livraison: { type: integer, minimum: 1 }
+  #               actif: { type: boolean }
+  #     responses:
+  #       "200":
+  #         description: "Tarif mis à jour avec succès"
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 success: { type: boolean, example: true }
+  #                 message:
+  #                   { type: string, example: "Tarif mis à jour avec succès." }
+  #                 tarif: { $ref: "#/components/schemas/Tarif" }
+  #       "422":
+  #         $ref: "#/components/responses/ValidationError"
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "404":
+  #         $ref: "#/components/responses/NotFound"
+  #       "500":
+  #         $ref: "#/components/responses/ServerError"
+
+  # /api/agences/delete-tarif/{tarif}:
+  #   parameters:
+  #     - name: tarif
+  #       in: path
+  #       required: true
+  #       schema: { type: string, format: uuid }
+  #       description: ID du tarif à supprimer
+  #   delete:
+  #     tags: [Agence - Tarifs]
+  #     summary: "Supprimer un tarif"
+  #     description: "Supprime définitivement un tarif de l'agence."
+  #     security:
+  #       - bearerAuth: []
+  #     responses:
+  #       "200":
+  #         description: "Tarif supprimé avec succès"
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 success: { type: boolean, example: true }
+  #                 message:
+  #                   { type: string, example: "Tarif supprimé avec succès." }
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "404":
+  #         $ref: "#/components/responses/NotFound"
+  #       "500":
+  #         $ref: "#/components/responses/ServerError"
+
+  # /api/agences/toggle-status-tarif/{tarif}:
+  #   parameters:
+  #     - name: tarif
+  #       in: path
+  #       required: true
+  #       schema: { type: string, format: uuid }
+  #       description: ID du tarif à activer/désactiver
+  #   put:
+  #     tags: [Agence - Tarifs]
+  #     summary: "Activer/désactiver un tarif"
+  #     description: "Change le statut d'activation d'un tarif (toggle)."
+  #     security:
+  #       - bearerAuth: []
+  #     responses:
+  #       "200":
+  #         description: "Statut du tarif modifié avec succès"
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 success: { type: boolean, example: true }
+  #                 message: { type: string, example: "Tarif activé." }
+  #                 tarif: { $ref: "#/components/schemas/Tarif" }
+  #       "403":
+  #         $ref: "#/components/responses/Forbidden"
+  #       "404":
+  #         $ref: "#/components/responses/NotFound"
+  #       "500":
+  #         $ref: "#/components/responses/ServerError"
