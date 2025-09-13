@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Str;
 
 class Zone extends Model
 {
@@ -15,18 +14,12 @@ class Zone extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected static function boot()
-    {
-        parent::boot();
-        static::creating(function ($model) {
-            $model->{$model->getKeyName()} = (string) Str::uuid();
-        });
-    }
+    // Pas de génération automatique d'UUID: l'id est fourni (ex: Z1..Z8)
 
     protected $fillable = [
+        'id',
         'nom',
-        'code',
-        'pays', // JSON array des pays de cette zone
+        'pays',
         'actif'
     ];
 
@@ -38,14 +31,10 @@ class Zone extends Model
     /**
      * Une zone peut avoir plusieurs tarifs
      */
-    public function tarifsDepart(): HasMany
-    {
-        return $this->hasMany(Tarif::class, 'zone_depart_id');
-    }
 
-    public function tarifsArrivee(): HasMany
+    public function tarifsBase(): HasMany
     {
-        return $this->hasMany(Tarif::class, 'zone_arrivee_id');
+        return $this->hasMany(TarifBase::class, 'zone_destination_id');
     }
 
     /**

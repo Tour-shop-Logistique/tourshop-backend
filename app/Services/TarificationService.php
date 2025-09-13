@@ -2,7 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Tarif;
+use App\Models\TarifBase;
+use App\Models\TarifAgence;
 use App\Models\Zone;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
@@ -32,8 +33,7 @@ class TarificationService
     }
 
     /**
-     * Arrondit l'indice selon les règles : .0 ou .5 uniquement
-     * Exemples: 2.6 → 3.0, 1.34 → 1.5, 1.25 → 1.5
+     * Arrondit l'indice (ex: 1.1 -> 1.5, 1.6 -> 2.0, etc.)
      */
     public function arrondirIndice(float $indice): float
     {
@@ -50,172 +50,148 @@ class TarificationService
     }
 
     /**
-     * Trouve le tarif approprié selon les critères
+     * Trouve un tarif normalisé (base ou agence) selon les critères
+     * Retourne un tableau normalisé avec: source, nom, montant_base, pourcentage_prestation, montant_prestation, montant_expedition
      */
     public function trouverTarifPourColis(
-        string $zoneDepart,
-        string $zoneArrivee,
-        string $typeColis,
+        string $zoneDestination,
+        ?string $typeColis,
         string $modeExpedition,
         float $poids,
         float $longueur = 0,
         float $largeur = 0,
-        float $hauteur = 0
-    ): ?Tarif {
+        float $hauteur = 0,
+        ?string $agenceId = null
+    ): ?array {
         // Calculer l'indice de référence
         $indiceReference = $this->determinerIndiceReference($poids, $longueur, $largeur, $hauteur);
         $indiceArrondi = $this->arrondirIndice($indiceReference);
 
-        // Chercher le tarif correspondant
-        return Tarif::where('zone_depart_id', $zoneDepart)
-            ->where('zone_arrivee_id', $zoneArrivee)
-            ->where('type_colis', $typeColis)
-            ->where('mode_expedition', $modeExpedition)
-            ->where('indice_tranche', $indiceArrondi)
-            ->where('actif', true)
-            ->first();
+        // 1) Si une agence est fournie, on cherche d'abord un tarif d'agence basé sur un tarif de base correspondant
+        if ($agenceId) {
+            $tarifAgence = TarifAgence::with('tarifBase')
+                ->pourCriteres($agenceId, $zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)
+                ->first();
+
+            if ($tarifAgence && $tarifAgence->tarifBase) {
+                $prixZoneAgence = $tarifAgence->getPrixPourZone($zoneDestination);
+                if ($prixZoneAgence) {
+                    return [
+                        'source' => 'agence',
+                        'id' => $tarifAgence->id,
+                        'indice' => (float) $tarifAgence->indice,
+                        'agence_nom' => optional($tarifAgence->agence)->nom,
+                        'montant_base' => round((float) $prixZoneAgence['montant_base'], 2, PHP_ROUND_HALF_UP),
+                        'pourcentage_prestation' => round((float) $prixZoneAgence['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
+                        'montant_prestation' => round((float) $prixZoneAgence['montant_prestation'], 2, PHP_ROUND_HALF_UP),
+                        'montant_expedition' => round((float) $prixZoneAgence['montant_expedition'], 2, PHP_ROUND_HALF_UP),
+                        'indice' => $indiceArrondi
+                    ];
+                }
+            }
+        }
+
+        // 2) Sinon on cherche un tarif de base
+        $tarifBase = TarifBase::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)->first();
+        if ($tarifBase) {
+            $prixZone = $tarifBase->getPrixPourZone($zoneDestination);
+            if ($prixZone) {
+                return [
+                    'source' => 'base',
+                    'id' => $tarifBase->id,
+                    'indice' => (float) $tarifBase->indice,
+                    'agence_nom' => null,
+                    'montant_base' => round((float) $prixZone['montant_base'], 2, PHP_ROUND_HALF_UP),
+                    'pourcentage_prestation' => round((float) $prixZone['pourcentage_prestation_base'], 2, PHP_ROUND_HALF_UP),
+                    'montant_prestation' => round((float) $prixZone['montant_prestation_base'], 2, PHP_ROUND_HALF_UP),
+                    'montant_expedition' => round((float) $prixZone['montant_expedition_base'], 2, PHP_ROUND_HALF_UP),
+                    'indice' => $indiceArrondi
+                ];
+            }
+        }
+
+        return null;
     }
 
     /**
-     * Calcule le prix pour un mode simple
-     */
-    public function calculerPrixSimple(Tarif $tarif, float $poids): float
-    {
-        if ($tarif->mode_expedition !== ModeExpedition::SIMPLE) {
-            return 0;
-        }
-
-        $montantBase = $tarif->montant_base ?? 0;
-        $pourcentagePrestation = $tarif->pourcentage_prestation ?? 0;
-
-        $supplementPrestation = ($montantBase * $pourcentagePrestation) / 100;
-
-        return $montantBase + $supplementPrestation;
-    }
-
-    /**
-     * Calcule le prix pour un mode groupage
-     */
-    public function calculerPrixGroupage(Tarif $tarif, float $poids, bool $livraisonDomicile = false): float
-    {
-        if ($tarif->mode_expedition !== ModeExpedition::GROUPAGE) {
-            return 0;
-        }
-
-        $prixBase = $tarif->prix_entrepot ?? 0;
-
-        if ($livraisonDomicile) {
-            $prixBase += $tarif->supplement_domicile_groupage ?? 0;
-        }
-
-        return $prixBase;
-    }
-
-    /**
-     * Simulation complète de tarification
+     * Simulation principale basée sur zone de destination uniquement
      */
     public function simulerTarification(array $donnees): array
     {
-        // Trouver les zones correspondantes
-        $zoneDepart = Zone::whereJsonContains('pays', $donnees['pays_depart'])->first();
-        $zoneArrivee = Zone::whereJsonContains('pays', $donnees['pays_arrivee'])->first();
-
-        if (!$zoneDepart || !$zoneArrivee) {
+        // Trouver la zone de destination à partir du pays d'arrivée
+        $zoneDestination = Zone::whereJsonContains('pays', $donnees['pays_arrivee'])->first();
+        if (!$zoneDestination) {
             throw new \Exception('Zone non trouvée pour un ou plusieurs pays.');
         }
 
-        // Calculer l'indice de référence
-        $indiceReference = $this->determinerIndiceReference(
-            $donnees['poids'],
-            $donnees['longueur'] ?? 0,
-            $donnees['largeur'] ?? 0,
-            $donnees['hauteur'] ?? 0
-        );
-
-        $indiceArrondi = $this->arrondirIndice($indiceReference);
-
-        // Chercher le tarif correspondant
+        // Chercher le tarif (agence si agence_id fourni, sinon base)
         $tarif = $this->trouverTarifPourColis(
-            $zoneDepart->id,
-            $zoneArrivee->id,
-            $donnees['type_colis'],
+            $zoneDestination->id,
+            $donnees['mode_expedition'] === 'groupage' ? ($donnees['type_colis'] ?? null) : null,
             $donnees['mode_expedition'],
             $donnees['poids'],
             $donnees['longueur'] ?? 0,
             $donnees['largeur'] ?? 0,
-            $donnees['hauteur'] ?? 0
+            $donnees['hauteur'] ?? 0,
+            $donnees['agence_id'] ?? null
         );
 
+        // Aucun tarif trouvé
+        $indiceReference = $this->determinerIndiceReference($donnees['poids'], $donnees['longueur'] ?? 0, $donnees['largeur'] ?? 0, $donnees['hauteur'] ?? 0);
+        $indiceArrondi = $this->arrondirIndice($indiceReference);
         if (!$tarif) {
-            throw new \Exception('Aucun tarif trouvé pour ces critères.');
+            return [
+                'success' => false,
+                'message' => 'Aucun tarif trouvé pour ces critères.',
+                'details' => [
+                    'zone_destination' => $zoneDestination->nom,
+                    'type_colis' => $donnees['type_colis'] ?? null,
+                    'mode_expedition' => $donnees['mode_expedition'],
+                    'indice_calcule' => $indiceArrondi
+                ]
+            ];
         }
 
-        // Calculer le prix selon le mode
-        $prix = 0;
-        $detailsCalcul = [];
+        // Prix final = montant_expedition fourni par le tarif normalisé
+        $prix = $tarif['montant_expedition'];
+        $detailsCalcul = [
+            'montant_base' => $tarif['montant_base'],
+            'pourcentage_prestation' => $tarif['pourcentage_prestation'],
+            'montant_prestation' => $tarif['montant_prestation'],
+            'indice_reference' => $indiceReference,
+            'indice_arrondi' => $indiceArrondi
+        ];
 
-        if ($donnees['mode_expedition'] === 'simple') {
-            $prix = $this->calculerPrixSimple($tarif, $donnees['poids']);
-            $detailsCalcul = [
-                'montant_base' => $tarif->montant_base,
-                'pourcentage_prestation' => $tarif->pourcentage_prestation,
-                'supplement_prestation' => ($tarif->montant_base * $tarif->pourcentage_prestation) / 100,
+        // Ajouter les dimensions uniquement pour mode simple
+        if (($donnees['mode_expedition'] ?? 'simple') === 'simple') {
+            $detailsCalcul = array_merge($detailsCalcul, [
                 'volume_cm3' => ($donnees['longueur'] ?? 0) * ($donnees['largeur'] ?? 0) * ($donnees['hauteur'] ?? 0),
                 'volume_divise' => $this->calculerVolumeDivise($donnees['longueur'] ?? 0, $donnees['largeur'] ?? 0, $donnees['hauteur'] ?? 0),
-                'indice_reference' => $indiceReference,
-                'indice_arrondi' => $indiceArrondi
-            ];
-        } else {
-            $livraisonDomicile = $donnees['livraison_domicile'] ?? false;
-            $prix = $this->calculerPrixGroupage($tarif, $donnees['poids'], $livraisonDomicile);
-            $detailsCalcul = [
-                'prix_entrepot' => $tarif->prix_entrepot,
-                'supplement_domicile' => $livraisonDomicile ? $tarif->supplement_domicile_groupage : 0,
-                'livraison_domicile' => $livraisonDomicile,
-                'indice_reference' => $indiceReference,
-                'indice_arrondi' => $indiceArrondi
-            ];
+            ]);
         }
 
         return [
-            'prix_total' => $prix,
-            'devise' => 'FCFA',
-            'zone_depart' => $zoneDepart->nom,
-            'zone_arrivee' => $zoneArrivee->nom,
-            'type_colis' => TypeColis::from($donnees['type_colis'])->label(),
-            'mode_expedition' => ModeExpedition::from($donnees['mode_expedition'])->label(),
-            'poids_kg' => $donnees['poids'],
-            'dimensions_cm' => $donnees['mode_expedition'] === 'simple' ? [
-                'longueur' => $donnees['longueur'] ?? 0,
-                'largeur' => $donnees['largeur'] ?? 0,
-                'hauteur' => $donnees['hauteur'] ?? 0
-            ] : null,
-            'delai_livraison_heures' => $tarif->delai_livraison,
-            'details_calcul' => $detailsCalcul,
+            'success' => true,
+            'simulation' => [
+                'prix_total' => round($prix, 2, PHP_ROUND_HALF_UP),
+                'devise' => 'FCFA',
+                'zone_destination' => $zoneDestination->nom,
+                'type_colis' => isset($donnees['type_colis']) && $donnees['type_colis'] ? TypeColis::from($donnees['type_colis'])->label() : null,
+                'mode_expedition' => ModeExpedition::from($donnees['mode_expedition'])->label(),
+                'poids_kg' => $donnees['poids'],
+                'dimensions_cm' => ($donnees['mode_expedition'] === 'simple') ? [
+                    'longueur' => $donnees['longueur'] ?? 0,
+                    'largeur' => $donnees['largeur'] ?? 0,
+                    'hauteur' => $donnees['hauteur'] ?? 0,
+                ] : null,
+                'details_calcul' => $detailsCalcul,
+            ],
             'tarif_utilise' => [
-                'id' => $tarif->id,
-                'nom' => $tarif->nom,
-                'agence' => $tarif->agence->nom ?? 'N/A'
+                'source' => $tarif['source'],
+                'id' => $tarif['id'],
+                'indice' => $tarif['indice'],
+                'agence' => $tarif['agence_nom'] ?? ($tarif['source'] === 'base' ? 'Tarif de base' : null)
             ]
         ];
-    }
-
-    /**
-     * Calcul de distance (méthode existante conservée)
-     */
-    private function calculerDistance($lat1, $lng1, $lat2, $lng2)
-    {
-        $earthRadius = 6371; // Rayon de la Terre en km
-
-        $dLat = deg2rad($lat2 - $lat1);
-        $dLng = deg2rad($lng2 - $lng1);
-
-        $a = sin($dLat / 2) * sin($dLat / 2) +
-            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-            sin($dLng / 2) * sin($dLng / 2);
-
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-
-        return $earthRadius * $c;
     }
 }

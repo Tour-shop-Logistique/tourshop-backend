@@ -4,12 +4,14 @@ use App\Http\Controllers\Api\Agence\AgenceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\TarifController;
 use App\Http\Controllers\Api\Client\ColisController;
-use App\Http\Controllers\Api\Client\TarificationController;
+use App\Http\Controllers\Api\TarificationController;
 use App\Http\Controllers\Api\Livreur\MissionController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Agence\AgenceUserController;
 use App\Http\Controllers\Api\Agence\AgenceNotificationController;
 use App\Http\Controllers\Api\Agence\AgenceTarifController;
+use App\Http\Controllers\Api\Backoffice\TarifBaseController;
+use App\Http\Controllers\Api\Backoffice\ZoneController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -82,7 +84,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gestion des utilisateurs de l'agence (réservé à l'admin créateur)
         Route::get('/list-users', [AgenceUserController::class, 'listUsers']);
         Route::post('/create-user', [AgenceUserController::class, 'createUser']);
+        Route::get('/show-user/{user}', [AgenceUserController::class, 'showUser']);
         Route::put('/edit-user/{user}', [AgenceUserController::class, 'editUser']);
+        Route::put('/status-user/{user}', [AgenceUserController::class, 'toggleStatusUser']);
 
 
         // Tableau de bord et statistiques
@@ -110,21 +114,34 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Gestion des tarifs de l'agence
         Route::get('/list-tarifs', [AgenceTarifController::class, 'listTarifs']);
-        Route::post('/create-tarif', [AgenceTarifController::class, 'createTarif']);
+        Route::post('/add-tarif', [AgenceTarifController::class, 'addTarif']);
         Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'showTarif']);
         Route::put('/update-tarif/{tarif}', [AgenceTarifController::class, 'updateTarif']);
         Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'deleteTarif']);
-        Route::put('/toggle-status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
+        Route::put('/status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
+
     });
 
     // Routes simulation tarification
     Route::prefix('tarification')->group(function () {
-        Route::post('/simuler', [TarificationController::class, 'simuler']);
-        Route::get('/zones-disponibles', [TarificationController::class, 'zonesDisponibles']);
+        Route::get('/list', [TarifBaseController::class, 'listTarifBase']);
+        Route::post('/add-simple', [TarifBaseController::class, 'addTarifBaseSimple']);
+        Route::put('/edit-simple/{tarifBase}', [TarifBaseController::class, 'editTarifBaseSimple']);
+        Route::get('/show/{tarifBase}', [TarifBaseController::class, 'showTarifBase']);
+        Route::delete('/delete/{tarifBase}', [TarifBaseController::class, 'deleteTarifBase']);
+        Route::put('/status/{tarifBase}', [TarifBaseController::class, 'toggleStatusTarifBase']);
+
+        // Route::post('/simuler', [TarificationController::class, 'simuler']);
+        // Route::get('/zones-disponibles', [TarificationController::class, 'zonesDisponibles']);
     });
 
-    // Routes admin
-    Route::prefix('admin')->group(function () {
-        // TODO: Controllers admin
+    // Routes backoffice: gestion des zones
+    Route::prefix('zones')->group(function () {
+        Route::get('/list', [ZoneController::class, 'listZones']);
+        Route::post('/add', [ZoneController::class, 'addZone']);
+        Route::get('/show/{zone}', [ZoneController::class, 'showZone']);
+        Route::put('/edit/{zone}', [ZoneController::class, 'editZone']);
+        Route::delete('/delete/{zone}', [ZoneController::class, 'deleteZone']);
+        Route::put('/status/{zone}', [ZoneController::class, 'toggleStatusZone']);
     });
 });

@@ -186,11 +186,10 @@ class AgenceUserController extends Controller
                 'email' => ['sometimes', 'nullable', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
                 'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
                 'type' => ['sometimes', 'in:livreur,agence,backoffice'],
-                'actif' => ['sometimes', 'boolean'],
             ]);
 
             // Mettre à jour les champs fournis
-            $updateData = $request->only(['nom', 'prenoms', 'telephone', 'email', 'actif']);
+            $updateData = $request->only(['nom', 'prenoms', 'telephone', 'email']);
 
             if ($request->has('type')) {
                 $updateData['type'] = UserType::from($request->type);
@@ -205,7 +204,7 @@ class AgenceUserController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Utilisateur mis à jour avec succès.',
-                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'agence_id'])
+                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'agence_id', 'actif'])
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -220,6 +219,101 @@ class AgenceUserController extends Controller
                 'message' => 'Une erreur inattendue est survenue lors de la modification de l\'utilisateur.',
                 'errors' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Afficher un utilisateur spécifique
+     */
+    public function showUser(Request $request, User $user)
+    {
+        try {
+            $adminUser = $request->user();
+
+            // Vérifier que l'utilisateur est de type agence et admin de son agence
+            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut consulter les utilisateurs.'
+                ], 403);
+            }
+
+            $agence = $adminUser->agence;
+            if (!$agence) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Agence introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que l'utilisateur à consulter appartient à la même agence
+            if ($user->agence_id !== $agence->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                ], 403);
+            }
+
+            return response()->json([
+                'success' => true,
+                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'agence_id', 'actif', 'created_at', 'updated_at'])
+            ]);
+        } catch (Exception $e) {
+            Log::error('Erreur affichage utilisateur : ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur serveur.',
+                'errors' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Activer/désactiver un utilisateur
+     */
+    public function toggleStatusUser(Request $request, User $user)
+    {
+        try {
+            $adminUser = $request->user();
+
+            // Vérifier que l'utilisateur est de type agence et admin de son agence
+            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut modifier les utilisateurs.'
+                ], 403);
+            }
+
+            $agence = $adminUser->agence;
+            if (!$agence) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Agence introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que l'utilisateur à modifier appartient à la même agence
+            if ($user->agence_id !== $agence->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                ], 403);
+            }
+
+            // Empêcher la modification de l'admin créateur par lui-même (sécurité)
+            if ($user->id === $agence->user_id && $request->has('type')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de modifier le type de l\'administrateur créateur.'
+                ], 422);
+            }
+
+            $user->actif = !$user->actif;
+            $user->save();
+            return response()->json(['success' => true, 'message' => $user->actif ? 'Utilisateur activé.' : 'Utilisateur désactivé.', 'user' => $user]);
+        } catch (Exception $e) {
+            Log::error('Erreur toggle statut utilisateur : ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
 }

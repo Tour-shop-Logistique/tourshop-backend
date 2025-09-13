@@ -4,18 +4,20 @@ info:
   version: 1.0.0
   description: |
     API pour Tour Shop Logistique SARL.
-    Documentation basée sur les vraies réponses des contrôleurs.
+    Documentation basée sur les endpoints fonctionnels.
 servers:
   - url: http://localhost:8000
     description: Local dev
   - url: https://tourshop.nport.link
     description: Production (nport)
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
     # ===== SCHEMAS DE REQUÊTE =====
     RegisterRequest:
@@ -60,18 +62,8 @@ components:
         ]
       properties:
         nom_agence: { type: string, maxLength: 255 }
-        telephone:
-          {
-            type: string,
-            maxLength: 20,
-            description: "Numéro de téléphone de l'agence",
-          }
-        description:
-          {
-            type: string,
-            maxLength: 1000,
-            description: "Description de l'agence (optionnel)",
-          }
+        telephone: { type: string, maxLength: 20 }
+        description: { type: string, maxLength: 1000 }
         adresse: { type: string, maxLength: 255 }
         ville: { type: string, maxLength: 255 }
         commune: { type: string, maxLength: 255 }
@@ -95,27 +87,6 @@ components:
               fermeture:
                 { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
 
-    AgenceUpdateRequest:
-      type: object
-      properties:
-        nom_agence: { type: string, maxLength: 255 }
-        telephone: { type: string, maxLength: 20 }
-        description: { type: string, maxLength: 1000 }
-        adresse: { type: string, maxLength: 255 }
-        ville: { type: string, maxLength: 255 }
-        commune: { type: string, maxLength: 255 }
-        pays: { type: string, maxLength: 255 }
-        latitude: { type: number, minimum: -90, maximum: 90 }
-        longitude: { type: number, minimum: -180, maximum: 180 }
-        horaires:
-          type: array
-          items:
-            type: object
-            properties:
-              jour: { type: string }
-              ouverture: { type: string }
-              fermeture: { type: string }
-
     CreateUserRequest:
       type: object
       required: [nom, prenoms, telephone, password, password_confirmation, type]
@@ -128,17 +99,49 @@ components:
         password_confirmation: { type: string, minLength: 8 }
         type: { type: string, enum: [livreur, agence, backoffice] }
 
-    UpdateUserRequest:
+    TarifBaseRequest:
       type: object
+      required: [indice, mode_expedition, prix_zones]
       properties:
-        nom: { type: string, maxLength: 255 }
-        prenoms: { type: string, maxLength: 255 }
-        telephone: { type: string }
-        email: { type: string, format: email, maxLength: 255 }
-        password: { type: string, minLength: 8 }
-        password_confirmation: { type: string, minLength: 8 }
-        type: { type: string, enum: [livreur, agence, backoffice] }
-        actif: { type: boolean }
+        indice: { type: number, minimum: 0, example: 2.0 }
+        mode_expedition: { type: string, enum: [simple, groupage] }
+        type_colis:
+          {
+            type: string,
+            enum:
+              [
+                document,
+                colis_standard,
+                colis_fragile,
+                colis_volumineux,
+                produit_alimentaire,
+                electronique,
+                vetement,
+                autre,
+              ],
+          }
+        prix_zones:
+          type: array
+          items:
+            type: object
+            required:
+              [zone_destination_id, montant_base, pourcentage_prestation]
+            properties:
+              zone_destination_id: { type: string, example: "Z1" }
+              montant_base: { type: number, minimum: 0, example: 5000 }
+              pourcentage_prestation:
+                { type: number, minimum: 0, maximum: 100, example: 15 }
+
+    ZoneRequest:
+      type: object
+      required: [id, nom, pays]
+      properties:
+        id: { type: string, example: "Z1" }
+        nom: { type: string, example: "Zone Locale" }
+        pays:
+          type: array
+          items: { type: string }
+          example: ["Côte d'Ivoire"]
 
     # ===== SCHEMAS DE RÉPONSE =====
     User:
@@ -152,7 +155,6 @@ components:
         type: { type: string, enum: [client, livreur, agence, backoffice] }
         actif: { type: boolean }
         agence_id: { type: string, format: uuid }
-        role: { type: string, example: "is_agence_admin" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -188,39 +190,55 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
-    UserAgence:
+    TarifBase:
       type: object
       properties:
         id: { type: string, format: uuid }
-        nom: { type: string }
-        prenoms: { type: string }
-        telephone: { type: string }
-        email: { type: string, format: email }
-        type: { type: string }
-        actif: { type: boolean }
-        role: { type: string, example: "is_agence_member" }
-        agence_id: { type: string, format: uuid }
-        created_at: { type: string, format: date-time }
-
-    Tarif:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        agence_id: { type: string, format: uuid }
-        nom: { type: string }
+        indice: { type: number }
         mode_expedition: { type: string, enum: [simple, groupage] }
-        description: { type: string }
-        prix_base: { type: number }
-        prix_par_kg: { type: number }
-        prix_par_km: { type: number }
-        zone_couverture: { type: number }
-        delai_livraison: { type: integer }
+        type_colis: { type: string }
+        prix_zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zone_destination_id: { type: string }
+              montant_base: { type: number }
+              pourcentage_prestation: { type: number }
+              montant_prestation: { type: number }
+              montant_expedition: { type: number }
+        actif: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Zone:
+      type: object
+      properties:
+        id: { type: string }
+        nom: { type: string }
+        pays: { type: array, items: { type: string } }
         actif: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
 paths:
   # ===== AUTHENTIFICATION =====
+  /api/test-cors:
+    get:
+      tags: [System]
+      summary: Test CORS
+      responses:
+        "200":
+          description: Test CORS réussi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  timestamp: { type: string }
+
   /api/register:
     post:
       tags: [Auth]
@@ -230,14 +248,6 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/RegisterRequest" }
-            example:
-              nom: "Kouassi"
-              prenoms: "Jean"
-              telephone: "0712345678"
-              email: "jean@example.com"
-              password: "motdepasse123"
-              password_confirmation: "motdepasse123"
-              type: "agence"
       responses:
         "201":
           description: Inscription réussie
@@ -246,10 +256,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message: { type: string, example: "Inscription réussie" }
+                  success: { type: boolean }
+                  message: { type: string }
                   user: { $ref: "#/components/schemas/User" }
-                  token: { type: string, description: "Token Sanctum" }
+                  token: { type: string }
 
   /api/login:
     post:
@@ -260,10 +270,6 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/LoginRequest" }
-            example:
-              telephone: "0712345678"
-              password: "motdepasse123"
-              type: "agence"
       responses:
         "200":
           description: Connexion réussie
@@ -272,10 +278,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message: { type: string, example: "Connexion réussie" }
+                  success: { type: boolean }
+                  message: { type: string }
                   user: { $ref: "#/components/schemas/User" }
-                  token: { type: string, description: "Token Sanctum" }
+                  token: { type: string }
 
   /api/logout:
     post:
@@ -291,8 +297,8 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message: { type: string, example: "Déconnexion réussie." }
+                  success: { type: boolean }
+                  message: { type: string }
 
   /api/profil:
     get:
@@ -308,16 +314,14 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
+                  success: { type: boolean }
                   user: { $ref: "#/components/schemas/User" }
-                  role: { type: string, example: "is_client" }
 
-  # ===== AGENCE SETUP =====
+  # ===== AGENCE =====
   /api/agence/setup:
     post:
       tags: [Agence]
-      summary: "Configurer une nouvelle agence"
-      description: "Crée une nouvelle agence et rattache l'utilisateur authentifié comme administrateur."
+      summary: Configurer une nouvelle agence
       security:
         - bearerAuth: []
       requestBody:
@@ -325,126 +329,82 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/AgenceSetupRequest" }
-            example:
-              nom_agence: "TourShop Express"
-              telephone: "+2250700000001"
-              description: "Agence de livraison express"
-              adresse: "Cocody Angré 8e tranche"
-              ville: "Abidjan"
-              commune: "Cocody"
-              pays: "Côte d'Ivoire"
-              latitude: 5.336318
-              longitude: -4.027751
-              horaires:
-                - jour: "lundi"
-                  ouverture: "08:00"
-                  fermeture: "18:00"
-                - jour: "mardi"
-                  ouverture: "08:00"
-                  fermeture: "18:00"
-                - jour: "mercredi"
-                  ouverture: "08:00"
-                  fermeture: "18:00"
-                - jour: "jeudi"
-                  ouverture: "08:00"
-                  fermeture: "18:00"
-                - jour: "vendredi"
-                  ouverture: "08:00"
-                  fermeture: "18:00"
-                - jour: "samedi"
-                  ouverture: "08:00"
-                  fermeture: "12:00"
       responses:
         "201":
-          description: "Agence créée avec succès"
+          description: Agence créée avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message:
-                    { type: string, example: "Agence configurée avec succès." }
+                  success: { type: boolean }
+                  message: { type: string }
                   agence: { $ref: "#/components/schemas/Agence" }
 
   /api/agence/show:
     get:
       tags: [Agence]
-      summary: "Afficher les informations de l'agence"
-      description: "Récupère les informations de l'agence de l'utilisateur connecté."
+      summary: Afficher les informations de l'agence
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: "Informations de l'agence récupérées avec succès"
+          description: Informations de l'agence récupérées
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
+                  success: { type: boolean }
                   agence: { $ref: "#/components/schemas/Agence" }
 
   /api/agence/update:
     put:
       tags: [Agence]
-      summary: "Mettre à jour les informations de l'agence"
-      description: "Met à jour les informations de l'agence de l'utilisateur connecté."
+      summary: Mettre à jour les informations de l'agence
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/AgenceUpdateRequest" }
+            schema: { $ref: "#/components/schemas/AgenceSetupRequest" }
       responses:
         "200":
-          description: "Agence mise à jour avec succès"
+          description: Agence mise à jour avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message:
-                    {
-                      type: string,
-                      example: "Profil de l'agence mis à jour avec succès.",
-                    }
+                  success: { type: boolean }
+                  message: { type: string }
                   agence: { $ref: "#/components/schemas/Agence" }
 
   # ===== GESTION UTILISATEURS AGENCE =====
   /api/agence/list-users:
     get:
       tags: [Agence - Users]
-      summary: "Lister les utilisateurs de l'agence"
-      description: "Liste tous les utilisateurs rattachés à l'agence."
+      summary: Lister les utilisateurs de l'agence
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: "Liste des utilisateurs récupérée avec succès"
+          description: Liste des utilisateurs récupérée
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
+                  success: { type: boolean }
                   users:
                     type: array
-                    items: { $ref: "#/components/schemas/UserAgence" }
-                  agence:
-                    type: object
-                    properties:
-                      id: { type: string, format: uuid }
-                      nom_agence: { type: string, example: "TourShop Express" }
-                      admin_id: { type: string, format: uuid }
+                    items: { $ref: "#/components/schemas/User" }
 
   /api/agence/create-user:
     post:
       tags: [Agence - Users]
-      summary: "Créer un nouvel utilisateur pour l'agence"
-      description: "Crée un nouvel utilisateur rattaché à l'agence."
+      summary: Créer un nouvel utilisateur pour l'agence
       security:
         - bearerAuth: []
       requestBody:
@@ -452,274 +412,372 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CreateUserRequest" }
-            example:
-              nom: "Dupont"
-              prenoms: "Jean"
-              telephone: "+2250700000002"
-              email: "jean.dupont@example.com"
-              password: "MotDePasse123!"
-              password_confirmation: "MotDePasse123!"
-              type: "agence"
       responses:
         "201":
-          description: "Utilisateur créé avec succès"
+          description: Utilisateur créé avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message:
-                    { type: string, example: "Utilisateur créé avec succès." }
-                  user: { $ref: "#/components/schemas/UserAgence" }
+                  success: { type: boolean }
+                  message: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
 
-  /api/agence/edit-user/{user}:
-    parameters:
-      - name: user
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-        description: ID de l'utilisateur à modifier
-    put:
+  /api/agence/show-user/{user}:
+    get:
       tags: [Agence - Users]
-      summary: "Mettre à jour un utilisateur de l'agence"
-      description: "Met à jour les informations d'un utilisateur de l'agence."
+      summary: Afficher un utilisateur spécifique
       security:
         - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
       responses:
         "200":
-          description: "Utilisateur mis à jour avec succès"
+          description: Utilisateur récupéré avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message:
-                    {
-                      type: string,
-                      example: "Utilisateur mis à jour avec succès.",
-                    }
-                  user: { $ref: "#/components/schemas/UserAgence" }
+                  success: { type: boolean }
+                  user: { $ref: "#/components/schemas/User" }
 
-  # ===== ROUTES TARIFICATION AGENCE =====
-  # /api/agences/list-tarifs:
-  #   get:
-  #     tags: [Agence - Tarifs]
-  #     summary: "Lister tous les tarifs de l'agence"
-  #     description: "Récupère la liste de tous les tarifs créés par l'agence."
-  #     security:
-  #       - bearerAuth: []
-  #     responses:
-  #       "200":
-  #         description: "Liste des tarifs récupérée avec succès"
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 success: { type: boolean, example: true }
-  #                 tarifs:
-  #                   type: array
-  #                   items: { $ref: "#/components/schemas/Tarif" }
-  #       "403":
-  #         $ref: "#/components/responses/Forbidden"
-  #       "404":
-  #         $ref: "#/components/responses/NotFound"
-  #       "500":
-  #         $ref: "#/components/responses/ServerError"
-
-  /api/agences/create-tarif:
-    post:
-      tags: [Agence - Tarifs]
-      summary: "Créer un nouveau tarif"
-      description: "Crée un nouveau tarif pour l'agence."
+  /api/agence/edit-user/{user}:
+    put:
+      tags: [Agence - Users]
+      summary: Mettre à jour un utilisateur de l'agence
       security:
         - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [nom, mode_expedition, prix_base]
               properties:
-                nom:
-                  { type: string, maxLength: 255, example: "Livraison Express" }
-                mode_expedition:
-                  { type: string, enum: [simple, groupage], example: "simple" }
-                description:
-                  {
-                    type: string,
-                    maxLength: 1000,
-                    example: "Livraison rapide en moins de 24h",
-                  }
-                prix_base: { type: number, minimum: 0, example: 2500 }
-                prix_par_kg: { type: number, minimum: 0, example: 500 }
-                prix_par_km: { type: number, minimum: 0, example: 100 }
-                zone_couverture: { type: number, minimum: 0, example: 50 }
-                delai_livraison: { type: integer, minimum: 1, example: 24 }
-                actif: { type: boolean, example: true }
+                nom: { type: string }
+                prenoms: { type: string }
+                telephone: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string, minLength: 8 }
+                type: { type: string, enum: [livreur, agence, backoffice] }
       responses:
-        "201":
-          description: "Tarif créé avec succès"
+        "200":
+          description: Utilisateur mis à jour avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message: { type: string, example: "Tarif créé avec succès." }
-                  tarif: { $ref: "#/components/schemas/Tarif" }
-        "422":
-          $ref: "#/components/responses/ValidationError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                  success: { type: boolean }
+                  message: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
 
-  # /api/agences/show-tarif/{tarif}:
-  #   parameters:
-  #     - name: tarif
-  #       in: path
-  #       required: true
-  #       schema: { type: string, format: uuid }
-  #       description: ID du tarif à afficher
-  #   get:
-  #     tags: [Agence - Tarifs]
-  #     summary: "Afficher un tarif spécifique"
-  #     description: "Récupère les détails d'un tarif spécifique de l'agence."
-  #     security:
-  #       - bearerAuth: []
-  #     responses:
-  #       "200":
-  #         description: "Tarif récupéré avec succès"
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 success: { type: boolean, example: true }
-  #                 tarif: { $ref: "#/components/schemas/Tarif" }
-  #       "403":
-  #         $ref: "#/components/responses/Forbidden"
-  #       "404":
-  #         $ref: "#/components/responses/NotFound"
-  #       "500":
-  #         $ref: "#/components/responses/ServerError"
+  /api/agence/status-user/{user}:
+    put:
+      tags: [Agence - Users]
+      summary: Activer/désactiver un utilisateur
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Statut utilisateur modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  user: { $ref: "#/components/schemas/User" }
 
-  # /api/agences/update-tarif/{tarif}:
-  #   parameters:
-  #     - name: tarif
-  #       in: path
-  #       required: true
-  #       schema: { type: string, format: uuid }
-  #       description: ID du tarif à mettre à jour
-  #   put:
-  #     tags: [Agence - Tarifs]
-  #     summary: "Mettre à jour un tarif"
-  #     description: "Met à jour les informations d'un tarif existant."
-  #     security:
-  #       - bearerAuth: []
-  #     requestBody:
-  #       required: true
-  #       content:
-  #         application/json:
-  #           schema:
-  #             type: object
-  #             properties:
-  #               nom: { type: string, maxLength: 255 }
-  #               description: { type: string, maxLength: 1000 }
-  #               prix_base: { type: number, minimum: 0 }
-  #               prix_par_kg: { type: number, minimum: 0 }
-  #               prix_par_km: { type: number, minimum: 0 }
-  #               zone_couverture: { type: number, minimum: 0 }
-  #               delai_livraison: { type: integer, minimum: 1 }
-  #               actif: { type: boolean }
-  #     responses:
-  #       "200":
-  #         description: "Tarif mis à jour avec succès"
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 success: { type: boolean, example: true }
-  #                 message:
-  #                   { type: string, example: "Tarif mis à jour avec succès." }
-  #                 tarif: { $ref: "#/components/schemas/Tarif" }
-  #       "422":
-  #         $ref: "#/components/responses/ValidationError"
-  #       "403":
-  #         $ref: "#/components/responses/Forbidden"
-  #       "404":
-  #         $ref: "#/components/responses/NotFound"
-  #       "500":
-  #         $ref: "#/components/responses/ServerError"
+  # ===== TARIFICATION =====
+  /api/tarification/list:
+    get:
+      tags: [Tarification]
+      summary: Lister les tarifs de base
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Liste des tarifs récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarifs:
+                    type: array
+                    items: { $ref: "#/components/schemas/TarifBase" }
 
-  # /api/agences/delete-tarif/{tarif}:
-  #   parameters:
-  #     - name: tarif
-  #       in: path
-  #       required: true
-  #       schema: { type: string, format: uuid }
-  #       description: ID du tarif à supprimer
-  #   delete:
-  #     tags: [Agence - Tarifs]
-  #     summary: "Supprimer un tarif"
-  #     description: "Supprime définitivement un tarif de l'agence."
-  #     security:
-  #       - bearerAuth: []
-  #     responses:
-  #       "200":
-  #         description: "Tarif supprimé avec succès"
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 success: { type: boolean, example: true }
-  #                 message:
-  #                   { type: string, example: "Tarif supprimé avec succès." }
-  #       "403":
-  #         $ref: "#/components/responses/Forbidden"
-  #       "404":
-  #         $ref: "#/components/responses/NotFound"
-  #       "500":
-  #         $ref: "#/components/responses/ServerError"
+  /api/tarification/add-simple:
+    post:
+      tags: [Tarification]
+      summary: Créer un tarif de base simple
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
+      responses:
+        "201":
+          description: Tarif de base créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
 
-  # /api/agences/toggle-status-tarif/{tarif}:
-  #   parameters:
-  #     - name: tarif
-  #       in: path
-  #       required: true
-  #       schema: { type: string, format: uuid }
-  #       description: ID du tarif à activer/désactiver
-  #   put:
-  #     tags: [Agence - Tarifs]
-  #     summary: "Activer/désactiver un tarif"
-  #     description: "Change le statut d'activation d'un tarif (toggle)."
-  #     security:
-  #       - bearerAuth: []
-  #     responses:
-  #       "200":
-  #         description: "Statut du tarif modifié avec succès"
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 success: { type: boolean, example: true }
-  #                 message: { type: string, example: "Tarif activé." }
-  #                 tarif: { $ref: "#/components/schemas/Tarif" }
-  #       "403":
-  #         $ref: "#/components/responses/Forbidden"
-  #       "404":
-  #         $ref: "#/components/responses/NotFound"
-  #       "500":
-  #         $ref: "#/components/responses/ServerError"
+  /api/tarification/edit-simple/{tarifBase}:
+    put:
+      tags: [Tarification]
+      summary: Modifier un tarif de base simple
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
+      responses:
+        "200":
+          description: Tarif de base mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/show/{tarifBase}:
+    get:
+      tags: [Tarification]
+      summary: Afficher un tarif de base
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tarif de base récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/delete/{tarifBase}:
+    delete:
+      tags: [Tarification]
+      summary: Supprimer un tarif de base
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tarif de base supprimé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+
+  /api/tarification/status/{tarifBase}:
+    put:
+      tags: [Tarification]
+      summary: Activer/désactiver un tarif de base
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Statut tarif modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  # ===== ZONES =====
+  /api/zones/list:
+    get:
+      tags: [Zones]
+      summary: Lister les zones
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Liste des zones récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  zones:
+                    type: array
+                    items: { $ref: "#/components/schemas/Zone" }
+
+  /api/zones/add:
+    post:
+      tags: [Zones]
+      summary: Créer une nouvelle zone
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ZoneRequest" }
+      responses:
+        "201":
+          description: Zone créée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  zone: { $ref: "#/components/schemas/Zone" }
+
+  /api/zones/show/{zone}:
+    get:
+      tags: [Zones]
+      summary: Afficher une zone spécifique
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Zone récupérée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  zone: { $ref: "#/components/schemas/Zone" }
+
+  /api/zones/edit/{zone}:
+    put:
+      tags: [Zones]
+      summary: Modifier une zone
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ZoneRequest" }
+      responses:
+        "200":
+          description: Zone mise à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  zone: { $ref: "#/components/schemas/Zone" }
+
+  /api/zones/delete/{zone}:
+    delete:
+      tags: [Zones]
+      summary: Supprimer une zone
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Zone supprimée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+
+  /api/zones/status/{zone}:
+    put:
+      tags: [Zones]
+      summary: Activer/désactiver une zone
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zone
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Statut zone modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  zone: { $ref: "#/components/schemas/Zone" }
