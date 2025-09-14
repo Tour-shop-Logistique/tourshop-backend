@@ -63,7 +63,6 @@ class TarifBaseController extends Controller
             $request->validate([
                 'indice' => ['required', 'numeric', 'min:0'],
                 'mode_expedition' => ['required', 'in:simple,groupage'],
-                'type_colis' => ['required_if:mode_expedition,groupage', 'nullable', 'in:document,colis_standard,colis_fragile,colis_volumineux,produit_alimentaire,electronique,vetement,autre'],
                 'prix_zones' => ['required', 'array', 'min:1'],
                 'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
                 'prix_zones.*.montant_base' => ['required', 'numeric', 'min:0'],
@@ -73,7 +72,6 @@ class TarifBaseController extends Controller
             $tarif = TarifBase::create([
                 'indice' => $request->indice,
                 'mode_expedition' => ModeExpedition::from($request->mode_expedition)->value,
-                'type_colis' => $request->mode_expedition === ModeExpedition::GROUPAGE->value ? TypeColis::from($request->type_colis)->value : null,
                 'prix_zones' => $request->prix_zones,
             ]);
 
@@ -117,20 +115,13 @@ class TarifBaseController extends Controller
 
             $request->validate([
                 'indice' => ['sometimes', 'numeric', 'min:0'],
-                'mode_expedition' => ['sometimes', 'in:simple,groupage'],
-                'type_colis' => ['sometimes', 'nullable', 'in:document,colis_standard,colis_fragile,colis_volumineux,produit_alimentaire,electronique,vetement,autre'],
                 'prix_zones' => ['sometimes', 'array', 'min:1'],
                 'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
                 'prix_zones.*.montant_base' => ['required', 'numeric', 'min:0'],
                 'prix_zones.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            // Si mode simple, forcer type_colis à null
-            if ($request->filled('mode_expedition') && $request->mode_expedition === ModeExpedition::SIMPLE->value) {
-                $request->merge(['type_colis' => null]);
-            }
-
-            $tarifBase->update($request->only(['indice', 'mode_expedition', 'type_colis', 'prix_zones']));
+            $tarifBase->update($request->only(['indice', 'prix_zones']));
 
             return response()->json(['success' => true, 'message' => 'Tarif de base mis à jour.', 'tarif' => $tarifBase]);
         } catch (ValidationException $e) {

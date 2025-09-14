@@ -114,9 +114,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Gestion des tarifs de l'agence
         Route::get('/list-tarifs', [AgenceTarifController::class, 'listTarifs']);
-        Route::post('/add-tarif', [AgenceTarifController::class, 'addTarif']);
+        Route::post('/add-tarif-simple', [AgenceTarifController::class, 'addTarifSimple']);
+        Route::put('/edit-tarif-simple/{tarif}', [AgenceTarifController::class, 'editTarifSimple']);
         Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'showTarif']);
-        Route::put('/update-tarif/{tarif}', [AgenceTarifController::class, 'updateTarif']);
         Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'deleteTarif']);
         Route::put('/status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
 

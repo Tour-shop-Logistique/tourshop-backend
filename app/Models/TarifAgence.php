@@ -44,6 +44,7 @@ class TarifAgence extends Model
                             if ($tarifBase) {
                                 $zoneBase = $tarifBase->getPrixPourZone($zone['zone_destination_id']);
                                 if ($zoneBase) {
+                                    $zone['montant_base'] = $zoneBase['montant_base'];
                                     $zone['montant_prestation'] = round(($zoneBase['montant_base'] * $zone['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
                                     $zone['montant_expedition'] = round($zoneBase['montant_base'] + $zone['montant_prestation'], 2, PHP_ROUND_HALF_UP);
                                 }

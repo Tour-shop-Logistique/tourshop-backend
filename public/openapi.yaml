@@ -132,6 +132,56 @@ components:
               pourcentage_prestation:
                 { type: number, minimum: 0, maximum: 100, example: 15 }
 
+    TarifAgenceRequest: # Pour la création
+      type: object
+      required: [tarif_base_id, prix_zones]
+      properties:
+        tarif_base_id:
+          type: string
+          format: uuid
+          description: "ID du tarif de base de référence"
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        prix_zones:
+          type: array
+          minItems: 1
+          description: "Zones avec pourcentages personnalisés par l'agence"
+          items:
+            type: object
+            required: [zone_destination_id, pourcentage_prestation]
+            properties:
+              zone_destination_id:
+                type: string
+                description: "ID de la zone de destination"
+                example: "Z1"
+              pourcentage_prestation:
+                type: number
+                minimum: 0
+                maximum: 100
+                description: "Pourcentage de prestation appliqué par l'agence pour cette zone"
+                example: 15.5
+
+    TarifAgenceUpdateRequest: # Pour la mise à jour
+      type: object
+      properties:
+        prix_zones:
+          type: array
+          minItems: 1
+          description: "(Optionnel) Mettre à jour les zones et pourcentages."
+          items:
+            type: object
+            required: [zone_destination_id, pourcentage_prestation]
+            properties:
+              zone_destination_id:
+                type: string
+                description: "ID de la zone de destination"
+                example: "Z1"
+              pourcentage_prestation:
+                type: number
+                minimum: 0
+                maximum: 100
+                description: "Nouveau pourcentage pour la zone"
+                example: 20.0
+
     ZoneRequest:
       type: object
       required: [id, nom, pays]
@@ -207,6 +257,43 @@ components:
               pourcentage_prestation: { type: number }
               montant_prestation: { type: number }
               montant_expedition: { type: number }
+        actif: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TarifAgence:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        agence_id: { type: string, format: uuid }
+        tarif_base_id: { type: string, format: uuid }
+        prix_zones:
+          type: array
+          description: "Détails des prix par zone, incluant les calculs."
+          items:
+            type: object
+            properties:
+              zone_destination_id: { type: string }
+              pourcentage_prestation:
+                {
+                  type: number,
+                  description: "Pourcentage défini par l'agence.",
+                }
+              montant_base:
+                {
+                  type: number,
+                  description: "Montant de base hérité du tarif de base.",
+                }
+              montant_prestation:
+                {
+                  type: number,
+                  description: "Montant de la prestation calculé.",
+                }
+              montant_expedition:
+                {
+                  type: number,
+                  description: "Montant total de l'expédition calculé.",
+                }
         actif: { type: boolean }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -643,6 +730,148 @@ paths:
                   success: { type: boolean }
                   message: { type: string }
                   tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  # ===== GESTION TARIFS AGENCE =====
+  /api/agence/list-tarifs:
+    get:
+      tags: [Agence - Tarifs]
+      summary: Lister les tarifs de l'agence
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Liste des tarifs de l'agence récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarifs:
+                    type: array
+                    items: { $ref: "#/components/schemas/TarifAgence" }
+
+  /api/agence/add-tarif-simple:
+    post:
+      tags: [Agence - Tarifs]
+      summary: Créer un nouveau tarif pour l'agence
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifAgenceRequest" }
+      responses:
+        "201":
+          description: Tarif d'agence créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifAgence" }
+
+  /api/agence/edit-tarif-simple/{tarif}:
+    put:
+      tags: [Agence - Tarifs]
+      summary: Modifier un tarif de l'agence
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarif
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID du tarif d'agence à modifier"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifAgenceUpdateRequest" }
+      responses:
+        "200":
+          description: Tarif d'agence mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifAgence" }
+
+  /api/agence/show-tarif/{tarif}:
+    get:
+      tags: [Agence - Tarifs]
+      summary: Afficher un tarif spécifique de l'agence
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarif
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID du tarif d'agence à afficher"
+      responses:
+        "200":
+          description: Tarif d'agence récupéré avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarif: { $ref: "#/components/schemas/TarifAgence" }
+
+  /api/agence/delete-tarif/{tarif}:
+    delete:
+      tags: [Agence - Tarifs]
+      summary: Supprimer un tarif de l'agence
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarif
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID du tarif d'agence à supprimer"
+      responses:
+        "200":
+          description: Tarif d'agence supprimé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+
+  /api/agence/status-tarif/{tarif}:
+    put:
+      tags: [Agence - Tarifs]
+      summary: Activer/désactiver un tarif de l'agence
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarif
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID du tarif d'agence dont modifier le statut"
+      responses:
+        "200":
+          description: Statut du tarif d'agence modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifAgence" }
 
   # ===== ZONES =====
   /api/zones/list:
