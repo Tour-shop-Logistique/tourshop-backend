@@ -13,21 +13,21 @@ return new class extends Migration
     {
         Schema::create('tarifs_base', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->uuid('backoffice_id')->nullable();
+            $table->foreign('backoffice_id')->references('id')->on('backoffices')->onDelete('set null')->onUpdate('cascade');
 
             // Définition du tarif (indice + mode + type)
             $table->decimal('indice', 5, 1); // Ex: 1.0, 1.5, 2.0, etc.
             $table->enum('mode_expedition', ['simple', 'groupage']);
             $table->string('type_colis')->nullable(); // Requis pour groupage, null pour simple
-
+            $table->string('pays')->nullable();
             // Prix par zone (JSON array)
             // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_base, montant_prestation_base, montant_expedition_base}
             $table->json('prix_zones');
 
             // Statut
             $table->boolean('actif')->default(true);
-
             $table->timestamps();
-
             // Index pour optimiser les recherches par indice/mode/type
             $table->index(['indice', 'mode_expedition', 'type_colis']);
         });

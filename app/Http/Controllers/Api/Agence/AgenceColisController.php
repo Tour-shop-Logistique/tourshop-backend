@@ -240,8 +240,8 @@ class AgenceColisController extends Controller
                 'livreur_id' => ['required', 'exists:users,id'],
             ]);
             $livreur = User::find($request->livreur_id);
-            if ($livreur->type !== UserType::LIVREUR) {
-                return response()->json(['success' => false, 'message' => 'L\'utilisateur choisi n\'est pas un livreur.'], 422);
+            if ($livreur->type !== UserType::LIVREUR || $livreur->is_deleted) {
+                return response()->json(['success' => false, 'message' => 'L\'utilisateur choisi n\'est pas un livreur valide.'], 422);
             }
             $colis->livreur_id = $livreur->id;
             $colis->save();

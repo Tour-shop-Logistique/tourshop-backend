@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('agence_id')->nullable();
-            $table->foreign('agence_id')->references('id')->on('agences')->onDelete('set null')->onUpdate('cascade');
+            $table->uuid('backoffice_id')->nullable();
             $table->string('nom');
             $table->string('prenoms');
             $table->string('telephone')->unique();
@@ -23,9 +23,12 @@ return new class extends Migration
             $table->json('adresses_favoris')->nullable(); // Pour clients
             $table->boolean('disponible')->default(true); // Pour livreurs
             $table->boolean('actif')->default(true);
+            $table->boolean('is_deleted')->default(false);
             $table->string('role')->nullable();
             $table->rememberToken();
             $table->timestamps();
+            $table->foreign('agence_id')->references('id')->on('agences')->nullOnDelete()->cascadeOnUpdate();
+            $table->foreign('backoffice_id')->references('id')->on('backoffices')->nullOnDelete()->cascadeOnUpdate();
         });
     }
 

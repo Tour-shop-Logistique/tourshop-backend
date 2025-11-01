@@ -38,6 +38,7 @@ class Agence extends Model
         'longitude',
         'horaires',
         'photos',
+        'logo',
         'actif',
         'message_accueil',
         'type'
@@ -52,8 +53,16 @@ class Agence extends Model
     // Relations
     public function user()
     {
-        // Une agence appartient à un utilisateur (son administrateur)
+        // L'admin créateur de l'agence
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Tous les utilisateurs rattachés à cette agence (dont l'admin).
+     */
+    public function users()
+    {
+        return $this->hasMany(User::class, "agence_id")->notDeleted();
     }
 
     // Garder seulement celle-ci car plus explicite
@@ -66,7 +75,7 @@ class Agence extends Model
     public function tarifs()
     {
         // Une agence peut avoir plusieurs tarifs
-        return $this->hasMany(Tarif::class);
+        return $this->hasMany(TarifAgence::class);
     }
 
     // Scopes
@@ -82,19 +91,6 @@ class Agence extends Model
         )->havingRaw('distance <= zone_couverture_km');
     }
 
-    /**
-     * Tous les utilisateurs rattachés à cette agence (dont l'admin).
-     */
-    public function users()
-    {
-        return $this->hasMany(User::class);
-    }
+ 
 
-    /**
-     * L'administrateur (créateur) de l'agence.
-     */
-    public function owner()
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
 }

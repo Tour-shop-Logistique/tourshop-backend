@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: |
     API pour Tour Shop Logistique SARL.
-    Documentation basée sur les endpoints fonctionnels.
+    Documentation basée sur les endpoints fonctionnels existants.
+
 servers:
   - url: http://localhost:8000
     description: Local dev
@@ -45,7 +46,7 @@ components:
           }
         password: { type: string }
         type:
-          { type: string, enum: [client, livreur, admin, backoffice, agence] }
+          { type: string, enum: [client, livreur, backoffice, agence] }
 
     AgenceSetupRequest:
       type: object
@@ -82,10 +83,16 @@ components:
                   enum:
                     [lundi, mardi, mercredi, jeudi, vendredi, samedi, dimanche],
                 }
+              ferme: {type: boolean}
               ouverture:
                 { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
               fermeture:
                 { type: string, pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$" }
+        logo:
+          type: string
+          format: binary
+          description: "Logo de l'agence (JPEG, PNG, JPG, GIF, SVG - max 2MB)"
+
 
     CreateUserRequest:
       type: object
@@ -98,6 +105,19 @@ components:
         password: { type: string, minLength: 8 }
         password_confirmation: { type: string, minLength: 8 }
         type: { type: string, enum: [livreur, agence, backoffice] }
+
+    CreateBackofficeUserRequest:
+      type: object
+      required: [nom, prenoms, telephone, password, password_confirmation, type]
+      properties:
+        nom: { type: string, maxLength: 255 }
+        prenoms: { type: string, maxLength: 255 }
+        telephone: { type: string }
+        email: { type: string, format: email, maxLength: 255 }
+        password: { type: string, minLength: 8 }
+        password_confirmation: { type: string, minLength: 8 }
+        type: { type: string, enum: [client, livreur, agence, backoffice] }
+        agence_id: { type: string, format: uuid, description: "Optionnel - ID de l'agence pour rattacher l'utilisateur" }
 
     TarifBaseRequest:
       type: object
@@ -132,7 +152,7 @@ components:
               pourcentage_prestation:
                 { type: number, minimum: 0, maximum: 100, example: 15 }
 
-    TarifAgenceRequest: # Pour la création
+    TarifAgenceRequest:
       type: object
       required: [tarif_base_id, prix_zones]
       properties:
@@ -160,7 +180,7 @@ components:
                 description: "Pourcentage de prestation appliqué par l'agence pour cette zone"
                 example: 15.5
 
-    TarifAgenceUpdateRequest: # Pour la mise à jour
+    TarifAgenceUpdateRequest:
       type: object
       properties:
         prix_zones:
@@ -204,6 +224,11 @@ components:
         email: { type: string, format: email }
         type: { type: string, enum: [client, livreur, agence, backoffice] }
         actif: { type: boolean }
+        role:
+          type: string
+          description: "Rôle de l'utilisateur dans l'agence (par exemple, livreur, gestionnaire, etc.)"
+          example: "livreur"
+        is_deleted: { type: boolean, description: "Indique si l'utilisateur est supprimé (soft delete)" }
         agence_id: { type: string, format: uuid }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -309,11 +334,12 @@ components:
         updated_at: { type: string, format: date-time }
 
 paths:
-  # ===== AUTHENTIFICATION =====
+  # ===== SYSTEM =====
   /api/test-cors:
     get:
       tags: [System]
       summary: Test CORS
+      description: Endpoint de test pour vérifier le fonctionnement de CORS.
       responses:
         "200":
           description: Test CORS réussi
@@ -322,14 +348,21 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
-                  timestamp: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "CORS fonctionne !" }
+                  timestamp: { type: string, format: date-time }
+                  origin: { type: string }
+                  method: { type: string }
+                  headers: { type: object }
 
+  # ===== AUTHENTIFICATION =====
   /api/register:
     post:
       tags: [Auth]
       summary: Inscription d'un utilisateur
+      description: |
+        Crée un nouveau compte utilisateur (client, livreur, agence ou backoffice).
+        Pour les comptes agence, l'utilisateur devient automatiquement administrateur de son agence.
       requestBody:
         required: true
         content:
@@ -343,15 +376,39 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Inscription réussie" }
                   user: { $ref: "#/components/schemas/User" }
-                  token: { type: string }
+                  token: { type: string, example: "1|abc123..." }
+        "422":
+          description: Erreur de validation des données
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Erreur de validation des données." }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/login:
     post:
       tags: [Auth]
       summary: Connexion utilisateur
+      description: |
+        Authentifie un utilisateur et génère un jeton d'accès.
+        La connexion peut se faire par téléphone ou email.
+        Le compte doit être actif pour pouvoir se connecter.
       requestBody:
         required: true
         content:
@@ -365,15 +422,36 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Connexion réussie" }
                   user: { $ref: "#/components/schemas/User" }
-                  token: { type: string }
+                  token: { type: string, example: "1|abc123..." }
+        "422":
+          description: Erreur de validation (identifiants incorrects ou compte désactivé)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Erreur de validation des identifiants." }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/logout:
     post:
       tags: [Auth]
       summary: Déconnexion
+      description: Révoque le jeton d'accès actuel de l'utilisateur authentifié.
       security:
         - bearerAuth: []
       responses:
@@ -384,13 +462,33 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Déconnexion réussie." }
+        "401":
+          description: Aucun utilisateur authentifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Aucun utilisateur authentifié pour la déconnexion." }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
                   message: { type: string }
+                  errors: { type: string }
 
   /api/profil:
     get:
       tags: [Auth]
       summary: Profil utilisateur authentifié
+      description: Récupère les informations du profil de l'utilisateur actuellement authentifié.
       security:
         - bearerAuth: []
       responses:
@@ -401,14 +499,37 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   user: { $ref: "#/components/schemas/User" }
+        "401":
+          description: Aucun utilisateur authentifié
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Aucun utilisateur authentifié." }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   # ===== AGENCE =====
   /api/agence/setup:
     post:
       tags: [Agence]
       summary: Configurer une nouvelle agence
+      description: |
+        Crée une nouvelle agence pour un utilisateur de type 'agence'.
+        L'utilisateur devient automatiquement rattaché à l'agence créée.
+        Une seule agence peut être créée par utilisateur agence.
       security:
         - bearerAuth: []
       requestBody:
@@ -424,14 +545,55 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Agence configurée avec succès." }
                   agence: { $ref: "#/components/schemas/Agence" }
+        "401":
+          description: Utilisateur non trouvé ou session expirée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Utilisateur non trouvé ou session expirée." }
+        "403":
+          description: Accès non autorisé - seul un utilisateur de type agence peut créer une agence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Accès non autorisé. Seuls les utilisateurs de type agence peuvent configurer une agence." }
+        "422":
+          description: Erreur de validation ou agence déjà existante
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Une agence est déjà configurée pour cet utilisateur." }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/show:
     get:
       tags: [Agence]
       summary: Afficher les informations de l'agence
+      description: |
+        Récupère les informations de l'agence associée à l'utilisateur authentifié.
+        Accessible aux administrateurs et membres de l'agence.
       security:
         - bearerAuth: []
       responses:
@@ -442,13 +604,44 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   agence: { $ref: "#/components/schemas/Agence" }
+        "403":
+          description: Accès non autorisé - seul un utilisateur de type agence peut consulter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Accès non autorisé. Seules les agences peuvent consulter leur profil." }
+        "404":
+          description: Aucune agence rattachée ou agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Aucune agence rattachée à cet utilisateur." }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/update:
     put:
       tags: [Agence]
       summary: Mettre à jour les informations de l'agence
+      description: |
+        Met à jour les informations de l'agence créée par l'utilisateur authentifié.
+        Accessible uniquement à l'administrateur créateur de l'agence.
       security:
         - bearerAuth: []
       requestBody:
@@ -464,15 +657,57 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Profil de l'agence mis à jour avec succès." }
                   agence: { $ref: "#/components/schemas/Agence" }
+        "403":
+          description: Accès non autorisé - seul l'admin créateur peut modifier
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Accès non autorisé. Seules les agences peuvent modifier leur profil." }
+        "404":
+          description: Agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Profil d'agence introuvable pour cet utilisateur." }
+        "422":
+          description: Erreur de validation des données
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Erreur de validation des données de l'agence." }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   # ===== GESTION UTILISATEURS AGENCE =====
   /api/agence/list-users:
     get:
       tags: [Agence - Users]
       summary: Lister les utilisateurs de l'agence
+      description: |
+        Liste tous les utilisateurs rattachés à l'agence de l'utilisateur connecté.
+        Seuls les utilisateurs actifs (non supprimés) sont retournés.
+        Réservé à l'administrateur de l'agence.
       security:
         - bearerAuth: []
       responses:
@@ -483,15 +718,53 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   users:
                     type: array
                     items: { $ref: "#/components/schemas/User" }
+                  agence:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom_agence: { type: string }
+                      admin_id: { type: string, format: uuid }
+        "403":
+          description: Accès non autorisé - seul l'admin de l'agence peut lister les utilisateurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "404":
+          description: Agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/create-user:
     post:
       tags: [Agence - Users]
       summary: Créer un nouvel utilisateur pour l'agence
+      description: |
+        Crée un nouvel utilisateur rattaché à l'agence de l'utilisateur connecté.
+        Le nouveau compte est automatiquement lié à l'agence et activé.
+        Réservé à l'administrateur de l'agence.
       security:
         - bearerAuth: []
       requestBody:
@@ -507,14 +780,67 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur créé avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string, enum: [livreur, agence] }
+                      actif: { type: boolean, example: true }
+                      agence_id: { type: string, format: uuid }
+                      role: { type: string }
+        "403":
+          description: Accès non autorisé - seul l'admin de l'agence peut créer des utilisateurs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
                   message: { type: string }
-                  user: { $ref: "#/components/schemas/User" }
+        "404":
+          description: Agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "422":
+          description: Erreur de validation des données
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/show-user/{user}:
     get:
       tags: [Agence - Users]
       summary: Afficher un utilisateur spécifique
+      description: |
+        Récupère les détails d'un utilisateur spécifique de l'agence.
+        L'utilisateur doit appartenir à la même agence que l'utilisateur connecté.
+        Réservé à l'administrateur de l'agence.
       security:
         - bearerAuth: []
       parameters:
@@ -522,6 +848,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à afficher"
       responses:
         "200":
           description: Utilisateur récupéré avec succès
@@ -530,13 +857,46 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   user: { $ref: "#/components/schemas/User" }
+        "403":
+          description: Accès non autorisé ou utilisateur n'appartient pas à l'agence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "404":
+          description: Utilisateur ou agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/edit-user/{user}:
     put:
       tags: [Agence - Users]
       summary: Mettre à jour un utilisateur de l'agence
+      description: |
+        Modifie les informations d'un utilisateur existant de l'agence.
+        L'utilisateur doit appartenir à la même agence que l'utilisateur connecté.
+        Impossible de modifier le type de l'administrateur créateur.
+        Réservé à l'administrateur de l'agence.
       security:
         - bearerAuth: []
       parameters:
@@ -544,6 +904,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à modifier"
       requestBody:
         required: true
         content:
@@ -551,10 +912,10 @@ paths:
             schema:
               type: object
               properties:
-                nom: { type: string }
-                prenoms: { type: string }
+                nom: { type: string, maxLength: 255 }
+                prenoms: { type: string, maxLength: 255 }
                 telephone: { type: string }
-                email: { type: string, format: email }
+                email: { type: string, format: email, maxLength: 255 }
                 password: { type: string, minLength: 8 }
                 password_confirmation: { type: string, minLength: 8 }
                 type: { type: string, enum: [livreur, agence, backoffice] }
@@ -566,14 +927,67 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur mis à jour avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string }
+                      agence_id: { type: string, format: uuid }
+                      actif: { type: boolean }
+        "403":
+          description: Accès non autorisé ou utilisateur n'appartient pas à l'agence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
                   message: { type: string }
-                  user: { $ref: "#/components/schemas/User" }
+        "404":
+          description: Utilisateur ou agence introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "422":
+          description: Erreur de validation des données ou tentative interdite
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/agence/status-user/{user}:
     put:
       tags: [Agence - Users]
       summary: Activer/désactiver un utilisateur
+      description: |
+        Bascule le statut actif/inactif d'un utilisateur de l'agence.
+        L'utilisateur doit appartenir à la même agence que l'utilisateur connecté.
+        Impossible de modifier le statut de l'administrateur créateur.
+        Réservé à l'administrateur de l'agence.
       security:
         - bearerAuth: []
       parameters:
@@ -581,6 +995,7 @@ paths:
           in: path
           required: true
           schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur dont modifier le statut"
       responses:
         "200":
           description: Statut utilisateur modifié avec succès
@@ -589,158 +1004,132 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur activé." }
                   user: { $ref: "#/components/schemas/User" }
-
-  # ===== TARIFICATION =====
-  /api/tarification/list:
-    get:
-      tags: [Tarification]
-      summary: Lister les tarifs de base
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Liste des tarifs récupérée
+        "403":
+          description: Accès non autorisé ou utilisateur n'appartient pas à l'agence
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  tarifs:
-                    type: array
-                    items: { $ref: "#/components/schemas/TarifBase" }
-
-  /api/tarification/add-simple:
-    post:
-      tags: [Tarification]
-      summary: Créer un tarif de base simple
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
-      responses:
-        "201":
-          description: Tarif de base créé avec succès
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: false }
                   message: { type: string }
-                  tarif: { $ref: "#/components/schemas/TarifBase" }
-
-  /api/tarification/edit-simple/{tarifBase}:
-    put:
-      tags: [Tarification]
-      summary: Modifier un tarif de base simple
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: tarifBase
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
-      responses:
-        "200":
-          description: Tarif de base mis à jour avec succès
+        "404":
+          description: Utilisateur ou agence introuvable
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: false }
                   message: { type: string }
-                  tarif: { $ref: "#/components/schemas/TarifBase" }
-
-  /api/tarification/show/{tarifBase}:
-    get:
-      tags: [Tarification]
-      summary: Afficher un tarif de base
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: tarifBase
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        "200":
-          description: Tarif de base récupéré
+        "422":
+          description: Tentative interdite (modification admin créateur)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  tarif: { $ref: "#/components/schemas/TarifBase" }
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
-  /api/tarification/delete/{tarifBase}:
+  /api/agence/delete-user/{user}:
     delete:
-      tags: [Tarification]
-      summary: Supprimer un tarif de base
+      tags: [Agence - Users]
+      summary: Supprimer un utilisateur (soft delete)
+      description: |
+        Marque l'utilisateur comme supprimé sans le supprimer physiquement de la base de données.
+        L'utilisateur peut être récupéré en remettant is_deleted à false.
       security:
         - bearerAuth: []
       parameters:
-        - name: tarifBase
+        - name: user
           in: path
           required: true
           schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à supprimer"
       responses:
         "200":
-          description: Tarif de base supprimé avec succès
+          description: Utilisateur supprimé avec succès
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
-
-  /api/tarification/status/{tarifBase}:
-    put:
-      tags: [Tarification]
-      summary: Activer/désactiver un tarif de base
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: tarifBase
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        "200":
-          description: Statut tarif modifié avec succès
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur supprimé avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string }
+                      agence_id: { type: string, format: uuid }
+                      is_deleted: { type: boolean, example: true }
+        "403":
+          description: Accès non autorisé ou utilisateur n'appartient pas à l'agence
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: false }
                   message: { type: string }
-                  tarif: { $ref: "#/components/schemas/TarifBase" }
+        "404":
+          description: Utilisateur introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "422":
+          description: Erreur de validation (tentative de suppression de l'admin créateur)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   # ===== GESTION TARIFS AGENCE =====
   /api/agence/list-tarifs:
     get:
       tags: [Agence - Tarifs]
       summary: Lister les tarifs de l'agence
+      description: Liste tous les tarifs personnalisés de l'agence.
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: Liste des tarifs de l'agence récupérée
+          description: Liste des tarifs récupérée
           content:
             application/json:
               schema:
@@ -755,6 +1144,7 @@ paths:
     post:
       tags: [Agence - Tarifs]
       summary: Créer un nouveau tarif pour l'agence
+      description: Crée un tarif personnalisé pour l'agence basé sur un tarif de base.
       security:
         - bearerAuth: []
       requestBody:
@@ -778,6 +1168,7 @@ paths:
     put:
       tags: [Agence - Tarifs]
       summary: Modifier un tarif de l'agence
+      description: Met à jour les pourcentages d'un tarif d'agence existant.
       security:
         - bearerAuth: []
       parameters:
@@ -807,6 +1198,7 @@ paths:
     get:
       tags: [Agence - Tarifs]
       summary: Afficher un tarif spécifique de l'agence
+      description: Récupère les détails d'un tarif d'agence spécifique.
       security:
         - bearerAuth: []
       parameters:
@@ -830,6 +1222,7 @@ paths:
     delete:
       tags: [Agence - Tarifs]
       summary: Supprimer un tarif de l'agence
+      description: Supprime un tarif personnalisé de l'agence.
       security:
         - bearerAuth: []
       parameters:
@@ -853,6 +1246,7 @@ paths:
     put:
       tags: [Agence - Tarifs]
       summary: Activer/désactiver un tarif de l'agence
+      description: Change le statut actif/inactif d'un tarif d'agence.
       security:
         - bearerAuth: []
       parameters:
@@ -873,11 +1267,156 @@ paths:
                   message: { type: string }
                   tarif: { $ref: "#/components/schemas/TarifAgence" }
 
+  # ===== TARIFICATION =====
+  /api/tarification/list:
+    get:
+      tags: [Tarification]
+      summary: Lister les tarifs de base
+      description: Liste tous les tarifs de base disponibles pour les agences.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Liste des tarifs récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarifs:
+                    type: array
+                    items: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/add-simple:
+    post:
+      tags: [Tarification]
+      summary: Créer un tarif de base simple
+      description: Crée un nouveau tarif de base pour le système.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
+      responses:
+        "201":
+          description: Tarif de base créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/edit-simple/{tarifBase}:
+    put:
+      tags: [Tarification]
+      summary: Modifier un tarif de base simple
+      description: Met à jour un tarif de base existant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TarifBaseRequest" }
+      responses:
+        "200":
+          description: Tarif de base mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/show/{tarifBase}:
+    get:
+      tags: [Tarification]
+      summary: Afficher un tarif de base
+      description: Récupère les détails d'un tarif de base spécifique.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tarif de base récupéré
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
+  /api/tarification/delete/{tarifBase}:
+    delete:
+      tags: [Tarification]
+      summary: Supprimer un tarif de base
+      description: Supprime un tarif de base du système.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Tarif de base supprimé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+
+  /api/tarification/status/{tarifBase}:
+    put:
+      tags: [Tarification]
+      summary: Activer/désactiver un tarif de base
+      description: Change le statut actif/inactif d'un tarif de base.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tarifBase
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Statut tarif modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  tarif: { $ref: "#/components/schemas/TarifBase" }
+
   # ===== ZONES =====
   /api/zones/list:
     get:
       tags: [Zones]
       summary: Lister les zones
+      description: Liste toutes les zones géographiques disponibles.
       security:
         - bearerAuth: []
       responses:
@@ -897,6 +1436,7 @@ paths:
     post:
       tags: [Zones]
       summary: Créer une nouvelle zone
+      description: Crée une nouvelle zone géographique pour le système.
       security:
         - bearerAuth: []
       requestBody:
@@ -912,14 +1452,35 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Zone créée avec succès." }
                   zone: { $ref: "#/components/schemas/Zone" }
+        "422":
+          description: Erreur de validation des données
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/zones/show/{zone}:
     get:
       tags: [Zones]
       summary: Afficher une zone spécifique
+      description: Récupère les détails d'une zone géographique spécifique.
       security:
         - bearerAuth: []
       parameters:
@@ -927,6 +1488,7 @@ paths:
           in: path
           required: true
           schema: { type: string }
+          description: "ID de la zone à afficher"
       responses:
         "200":
           description: Zone récupérée avec succès
@@ -935,13 +1497,33 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
                   zone: { $ref: "#/components/schemas/Zone" }
+        "404":
+          description: Zone introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/zones/edit/{zone}:
     put:
       tags: [Zones]
       summary: Modifier une zone
+      description: Met à jour les informations d'une zone géographique existante.
       security:
         - bearerAuth: []
       parameters:
@@ -949,6 +1531,7 @@ paths:
           in: path
           required: true
           schema: { type: string }
+          description: "ID de la zone à modifier"
       requestBody:
         required: true
         content:
@@ -962,14 +1545,44 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Zone mise à jour avec succès." }
                   zone: { $ref: "#/components/schemas/Zone" }
+        "404":
+          description: Zone introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "422":
+          description: Erreur de validation des données
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: object }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/zones/delete/{zone}:
     delete:
       tags: [Zones]
       summary: Supprimer une zone
+      description: Supprime une zone géographique du système.
       security:
         - bearerAuth: []
       parameters:
@@ -977,6 +1590,7 @@ paths:
           in: path
           required: true
           schema: { type: string }
+          description: "ID de la zone à supprimer"
       responses:
         "200":
           description: Zone supprimée avec succès
@@ -985,13 +1599,33 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Zone supprimée avec succès." }
+        "404":
+          description: Zone introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
                   message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
 
   /api/zones/status/{zone}:
     put:
       tags: [Zones]
       summary: Activer/désactiver une zone
+      description: Change le statut actif/inactif d'une zone géographique.
       security:
         - bearerAuth: []
       parameters:
@@ -999,6 +1633,7 @@ paths:
           in: path
           required: true
           schema: { type: string }
+          description: "ID de la zone dont modifier le statut"
       responses:
         "200":
           description: Statut zone modifié avec succès
@@ -1007,6 +1642,409 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  message: { type: string }
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Zone activée." }
                   zone: { $ref: "#/components/schemas/Zone" }
+        "404":
+          description: Zone introuvable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+        "500":
+          description: Erreur serveur
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors: { type: string }
+
+  # ===== BACKOFFICE =====
+  /api/backoffice/setup:
+    post:
+      tags: [Backoffice]
+      summary: Configurer le backoffice
+      description: |
+        Configure les informations du backoffice pour un utilisateur de type 'backoffice'.
+        Stocke les informations dans les métadonnées de l'utilisateur.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BackofficeSetupRequest" }
+      responses:
+        "201":
+          description: Backoffice configuré avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Backoffice configuré avec succès." }
+                  backoffice:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      nom_organisation: { type: string }
+                      telephone: { type: string }
+                      description: { type: string }
+                      adresse: { type: string }
+                      ville: { type: string }
+                      commune: { type: string }
+                      pays: { type: string }
+                      email_contact: { type: string, format: email }
+                      site_web: { type: string, format: uri }
+        "401":
+          description: Utilisateur non trouvé ou session expirée
+        "403":
+          description: Accès non autorisé - seul un utilisateur backoffice peut configurer
+        "422":
+          description: Erreur de validation des données
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/show:
+    get:
+      tags: [Backoffice]
+      summary: Afficher les informations du backoffice
+      description: |
+        Récupère les informations du backoffice associé à l'utilisateur authentifié.
+        Accessible uniquement aux utilisateurs de type 'backoffice'.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Informations du backoffice récupérées
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  backoffice:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      nom_organisation: { type: string }
+                      telephone: { type: string }
+                      description: { type: string }
+                      adresse: { type: string }
+                      ville: { type: string }
+                      commune: { type: string }
+                      pays: { type: string }
+                      email_contact: { type: string, format: email }
+                      site_web: { type: string, format: uri }
+                      created_at: { type: string, format: date-time }
+                      updated_at: { type: string, format: date-time }
+        "403":
+          description: Accès non autorisé - seul un utilisateur backoffice peut consulter
+        "404":
+          description: Configuration backoffice introuvable
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/update:
+    put:
+      tags: [Backoffice]
+      summary: Mettre à jour les informations du backoffice
+      description: |
+        Met à jour les informations du backoffice créé par l'utilisateur authentifié.
+        Accessible uniquement aux utilisateurs de type 'backoffice'.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BackofficeSetupRequest" }
+      responses:
+        "200":
+          description: Backoffice mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Profil du backoffice mis à jour avec succès." }
+                  backoffice:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      nom_organisation: { type: string }
+                      telephone: { type: string }
+                      description: { type: string }
+                      adresse: { type: string }
+                      ville: { type: string }
+                      commune: { type: string }
+                      pays: { type: string }
+                      email_contact: { type: string, format: email }
+                      site_web: { type: string, format: uri }
+                      updated_at: { type: string, format: date-time }
+        "403":
+          description: Accès non autorisé - seul un utilisateur backoffice peut modifier
+        "404":
+          description: Configuration backoffice introuvable
+        "422":
+          description: Erreur de validation des données
+        "500":
+          description: Erreur serveur
+
+  # ===== GESTION UTILISATEURS BACKOFFICE =====
+  /api/backoffice/list-users:
+    get:
+      tags: [Backoffice - Users]
+      summary: Lister tous les utilisateurs du système
+      description: |
+        Liste tous les utilisateurs du système (tous types confondus).
+        Seuls les utilisateurs actifs (non supprimés) sont retournés.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [client, livreur, agence, backoffice] }
+          description: "Filtrer par type d'utilisateur"
+        - name: actif
+          in: query
+          schema: { type: boolean }
+          description: "Filtrer par statut actif/inactif"
+      responses:
+        "200":
+          description: Liste des utilisateurs récupérée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/User" }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut lister tous les utilisateurs
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/create-user:
+    post:
+      tags: [Backoffice - Users]
+      summary: Créer un nouvel utilisateur système
+      description: |
+        Crée un nouvel utilisateur de n'importe quel type dans le système.
+        Le nouveau compte est automatiquement activé.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBackofficeUserRequest" }
+      responses:
+        "201":
+          description: Utilisateur créé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur créé avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string, enum: [client, livreur, agence, backoffice] }
+                      actif: { type: boolean, example: true }
+                      agence_id: { type: string, format: uuid }
+                      role: { type: string }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut créer des utilisateurs
+        "422":
+          description: Erreur de validation des données
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/show-user/{user}:
+    get:
+      tags: [Backoffice - Users]
+      summary: Afficher un utilisateur spécifique
+      description: |
+        Récupère les détails d'un utilisateur spécifique du système.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à afficher"
+      responses:
+        "200":
+          description: Utilisateur récupéré avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  user: { $ref: "#/components/schemas/User" }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut consulter les utilisateurs
+        "404":
+          description: Utilisateur introuvable
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/edit-user/{user}:
+    put:
+      tags: [Backoffice - Users]
+      summary: Mettre à jour un utilisateur système
+      description: |
+        Modifie les informations d'un utilisateur existant dans le système.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à modifier"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nom: { type: string, maxLength: 255 }
+                prenoms: { type: string, maxLength: 255 }
+                telephone: { type: string }
+                email: { type: string, format: email, maxLength: 255 }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string, minLength: 8 }
+                type: { type: string, enum: [client, livreur, agence, backoffice] }
+                agence_id: { type: string, format: uuid, nullable: true }
+                actif: { type: boolean }
+      responses:
+        "200":
+          description: Utilisateur mis à jour avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur mis à jour avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string }
+                      agence_id: { type: string, format: uuid }
+                      actif: { type: boolean }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut modifier les utilisateurs
+        "404":
+          description: Utilisateur introuvable
+        "422":
+          description: Erreur de validation des données
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/status-user/{user}:
+    put:
+      tags: [Backoffice - Users]
+      summary: Activer/désactiver un utilisateur
+      description: |
+        Bascule le statut actif/inactif d'un utilisateur du système.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur dont modifier le statut"
+      responses:
+        "200":
+          description: Statut utilisateur modifié avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur activé." }
+                  user: { $ref: "#/components/schemas/User" }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut modifier les utilisateurs
+        "404":
+          description: Utilisateur introuvable
+        "500":
+          description: Erreur serveur
+
+  /api/backoffice/delete-user/{user}:
+    delete:
+      tags: [Backoffice - Users]
+      summary: Supprimer un utilisateur (soft delete)
+      description: |
+        Marque l'utilisateur comme supprimé sans le supprimer physiquement de la base de données.
+        L'utilisateur peut être récupéré en remettant is_deleted à false.
+        Réservé aux utilisateurs backoffice.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: "ID de l'utilisateur à supprimer"
+      responses:
+        "200":
+          description: Utilisateur supprimé avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Utilisateur supprimé avec succès." }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      nom: { type: string }
+                      prenoms: { type: string }
+                      telephone: { type: string }
+                      email: { type: string, format: email }
+                      type: { type: string }
+                      is_deleted: { type: boolean, example: true }
+        "403":
+          description: Accès non autorisé - seul le backoffice peut supprimer les utilisateurs
+        "404":
+          description: Utilisateur introuvable
+        "500":
+          description: Erreur serveur

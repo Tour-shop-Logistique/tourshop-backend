@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\Agence\AgenceNotificationController;
 use App\Http\Controllers\Api\Agence\AgenceTarifController;
 use App\Http\Controllers\Api\Backoffice\TarifBaseController;
 use App\Http\Controllers\Api\Backoffice\ZoneController;
+use App\Http\Controllers\Api\Backoffice\BackofficeController;
+use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +77,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/disponibilite', [MissionController::class, 'changerDisponibilite']);
     });*/
 
+    // Tableau de bord et statistiques
+    /*Route::get('/dashboard', [AgenceController::class, 'dashboard']);  // Tableau de bord avec statistiques
+    Route::get('/statistiques', [AgenceController::class, 'statistiques']);  // Statistiques détaillées
+    Route::get('/livreurs-disponibles', [AgenceController::class, 'livreursDisponibles']);  // Liste des livreurs
+
+    // Application Agence: workflow opérationnel
+    Route::get('/expeditions', [AgenceController::class, 'colis']);
+    Route::get('/expeditions/recherche', [AgenceController::class, 'rechercheColis']);  // Recherche avancée
+    Route::get('/expeditions/{colis}', [AgenceController::class, 'detailsColis']);  // Détails d'un colis
+    Route::post('/expeditions/{colis}/accepter', [AgenceController::class, 'accepter']);
+    Route::post('/expeditions/{colis}/refuser', [AgenceController::class, 'refuser']);
+    Route::post('/expeditions/{colis}/assign-livreur', [AgenceController::class, 'assignerLivreur']);
+    Route::post('/expeditions/{colis}/statut', [AgenceController::class, 'changerStatut']);
+    Route::post('/expeditions/{colis}/preuves', [AgenceController::class, 'ajouterPreuves']);
+    Route::post('/expeditions/{colis}/verifier', [AgenceController::class, 'verifier']);
+
+
+    // Notifications de l'agence
+    Route::get('/notifications', [AgenceNotificationController::class, 'index']);
+    Route::put('/notifications/{notificationId}/lue', [AgenceNotificationController::class, 'marquerLue']);
+    Route::put('/notifications/toutes-lues', [AgenceNotificationController::class, 'marquerToutesLues']);
+    Route::delete('/notifications/{notificationId}', [AgenceNotificationController::class, 'supprimer']);*/
+
     // Routes agences
     Route::prefix('agence')->group(function () {
         Route::post('/setup', [AgenceController::class, 'setupAgence']);
@@ -87,30 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show-user/{user}', [AgenceUserController::class, 'showUser']);
         Route::put('/edit-user/{user}', [AgenceUserController::class, 'editUser']);
         Route::put('/status-user/{user}', [AgenceUserController::class, 'toggleStatusUser']);
-
-
-        // Tableau de bord et statistiques
-        // Route::get('/dashboard', [AgenceController::class, 'dashboard']);  // Tableau de bord avec statistiques
-        // Route::get('/statistiques', [AgenceController::class, 'statistiques']);  // Statistiques détaillées
-        // Route::get('/livreurs-disponibles', [AgenceController::class, 'livreursDisponibles']);  // Liste des livreurs
-
-        // Application Agence: workflow opérationnel
-        // Route::get('/expeditions', [AgenceController::class, 'colis']);
-        // Route::get('/expeditions/recherche', [AgenceController::class, 'rechercheColis']);  // Recherche avancée
-        // Route::get('/expeditions/{colis}', [AgenceController::class, 'detailsColis']);  // Détails d'un colis
-        // Route::post('/expeditions/{colis}/accepter', [AgenceController::class, 'accepter']);
-        // Route::post('/expeditions/{colis}/refuser', [AgenceController::class, 'refuser']);
-        // Route::post('/expeditions/{colis}/assign-livreur', [AgenceController::class, 'assignerLivreur']);
-        // Route::post('/expeditions/{colis}/statut', [AgenceController::class, 'changerStatut']);
-        // Route::post('/expeditions/{colis}/preuves', [AgenceController::class, 'ajouterPreuves']);
-        // Route::post('/expeditions/{colis}/verifier', [AgenceController::class, 'verifier']);
-
-
-        // Notifications de l'agence
-        // Route::get('/notifications', [AgenceNotificationController::class, 'index']);
-        // Route::put('/notifications/{notificationId}/lue', [AgenceNotificationController::class, 'marquerLue']);
-        // Route::put('/notifications/toutes-lues', [AgenceNotificationController::class, 'marquerToutesLues']);
-        // Route::delete('/notifications/{notificationId}', [AgenceNotificationController::class, 'supprimer']);
+        Route::delete('/delete-user/{user}', [AgenceUserController::class, 'deleteUser']);
 
         // Gestion des tarifs de l'agence
         Route::get('/list-tarifs', [AgenceTarifController::class, 'listTarifs']);
@@ -119,10 +121,24 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'showTarif']);
         Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'deleteTarif']);
         Route::put('/status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
-
     });
 
-    // Routes simulation tarification
+    // Routes backoffice
+    Route::prefix('backoffice')->group(function () {
+        Route::post('/setup', [BackofficeController::class, 'setupBackoffice']);
+        Route::get('/show', [BackofficeController::class, 'showBackoffice']);
+        Route::put('/update', [BackofficeController::class, 'updateBackoffice']);
+
+        // Gestion des utilisateurs du système (réservé au backoffice)
+        Route::get('/list-users', [BackofficeUserController::class, 'listUsers']);
+        Route::post('/create-user', [BackofficeUserController::class, 'createUser']);
+        Route::get('/show-user/{user}', [BackofficeUserController::class, 'showUser']);
+        Route::put('/edit-user/{user}', [BackofficeUserController::class, 'editUser']);
+        Route::put('/status-user/{user}', [BackofficeUserController::class, 'toggleStatusUser']);
+        Route::delete('/delete-user/{user}', [BackofficeUserController::class, 'deleteUser']);
+    });
+
+    // Routes tarification par le backoffice
     Route::prefix('tarification')->group(function () {
         Route::get('/list', [TarifBaseController::class, 'listTarifBase']);
         Route::post('/add-simple', [TarifBaseController::class, 'addTarifBaseSimple']);

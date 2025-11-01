@@ -52,7 +52,9 @@ class TarifBase extends Model
         'mode_expedition',
         'type_colis',
         'prix_zones',
-        'actif'
+        'actif',
+        'pays',
+        'backoffice_id',
     ];
 
     /**
@@ -123,4 +125,11 @@ class TarifBase extends Model
     {
         return $query->where('actif', true);
     }
+
+     public function backoffice()
+    {
+        return $this->belongsTo(Backoffice::class, 'backoffice_id');
+    }
+
+
 }

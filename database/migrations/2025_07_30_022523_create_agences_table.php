@@ -23,6 +23,7 @@ return new class extends Migration
             $table->decimal('longitude', 11, 8);
             $table->json('horaires')->nullable();
             $table->json('photos')->nullable();
+            $table->string('logo')->nullable();
             $table->boolean('actif')->default(true);
             $table->text('message_accueil')->nullable();
             $table->timestamps();

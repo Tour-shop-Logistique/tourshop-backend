@@ -66,6 +66,7 @@ class AgenceController extends Controller
                 'horaires.*.jour' => ['required_with:horaires', 'string', 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche'],
                 'horaires.*.ouverture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
                 'horaires.*.fermeture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+                'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048'],
             ]);
 
             // Normaliser le champ horaires (accepter array ou JSON string)
@@ -75,6 +76,12 @@ class AgenceController extends Controller
                 $horaires = is_array($decoded) ? $decoded : [];
             } elseif (!is_array($horaires)) {
                 $horaires = [];
+            }
+
+            // Gestion du logo
+            $logoPath = null;
+            if ($request->hasFile('logo')) {
+                $logoPath = $request->file('logo')->store('agences/logos', 'public');
             }
 
             // Crée l'agence
@@ -90,6 +97,7 @@ class AgenceController extends Controller
                 'latitude' => $request->latitude,
                 'longitude' => $request->longitude,
                 'horaires' => $horaires,
+                'logo' => $logoPath,
             ]);
 
             // Rattache l'utilisateur créateur à l'agence créée
@@ -212,6 +220,7 @@ class AgenceController extends Controller
                 'horaires.*.jour' => ['required_with:horaires', 'string'],
                 'horaires.*.ouverture' => ['required_with:horaires', 'string'],
                 'horaires.*.fermeture' => ['required_with:horaires', 'string'],
+                'logo' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048'],
             ]);
 
             // Normaliser horaires si fourni dans la requête de mise à jour
@@ -224,6 +233,23 @@ class AgenceController extends Controller
                     $h = [];
                 }
                 $request->merge(['horaires' => $h]);
+            }
+
+            // Gestion du logo pour la mise à jour
+            if ($request->hasFile('logo')) {
+                // Supprimer l'ancien logo s'il existe
+                if ($agence->logo && Storage::disk('public')->exists($agence->logo)) {
+                    Storage::disk('public')->delete($agence->logo);
+                }
+                // Stocker le nouveau logo
+                $logoPath = $request->file('logo')->store('agences/logos', 'public');
+                $request->merge(['logo' => $logoPath]);
+            } elseif ($request->has('logo') && $request->logo === null) {
+                // Supprimer le logo si explicitement mis à null
+                if ($agence->logo && Storage::disk('public')->exists($agence->logo)) {
+                    Storage::disk('public')->delete($agence->logo);
+                }
+                $request->merge(['logo' => null]);
             }
 
             // Met à jour l'agence avec les données validées
@@ -303,6 +329,7 @@ class AgenceController extends Controller
             $livreursActifs = User::where('agence_id', $agence->id)
                 ->where('type', UserType::LIVREUR)
                 ->where('actif', true)
+                ->where('is_deleted', false)
                 ->count();
 
             // Colis récents
@@ -373,6 +400,7 @@ class AgenceController extends Controller
             // Top livreurs
             $topLivreurs = User::where('agence_id', $agence->id)
                 ->where('type', UserType::LIVREUR)
+                ->where('is_deleted', false)
                 ->withCount(['colisLivres as colis_livres' => function ($query) use ($agence) {
                     $query->where('agence_id', $agence->id)->where('status', ColisStatus::LIVRE);
                 }])
@@ -418,6 +446,7 @@ class AgenceController extends Controller
             $livreurs = User::where('agence_id', $agence->id)
                 ->where('type', UserType::LIVREUR)
                 ->where('actif', true)
+                ->where('is_deleted', false)
                 ->select('id', 'nom', 'prenoms', 'telephone', 'disponible', 'latitude', 'longitude')
                 ->get();
 

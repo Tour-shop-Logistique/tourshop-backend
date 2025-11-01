@@ -44,8 +44,12 @@ class User extends Authenticatable
         'disponible',
         'actif',
         'role',
+        'is_deleted',
         // Rattachement à une agence
         'agence_id',
+        // Rattachement à un backoffice
+        'backoffice_id',
+        
     ];
 
     protected $hidden = [
@@ -59,6 +63,7 @@ class User extends Authenticatable
         'adresses_favoris' => 'array',
         'disponible' => 'boolean',
         'actif' => 'boolean',
+        'is_deleted' => 'boolean',
         'type' => UserType::class,
     ];
 
@@ -83,8 +88,14 @@ class User extends Authenticatable
 
     public function agence()
     {
-        // Tout utilisateur est rattaché à UNE agence via users.agence_id (y compris l'admin créateur)
+        // Tout utilisateur est rattaché à UNE agence via users.agence_id 
         return $this->belongsTo(Agence::class);
+    }
+
+    public function backoffice()
+    {
+        // Tout utilisateur backoffice est rattaché à UN backoffice via users.backoffice_id
+        return $this->belongsTo(Backoffice::class);
     }
 
     public function historiqueStatuts()
@@ -109,6 +120,11 @@ class User extends Authenticatable
         return $query->where('disponible', true);
     }
 
+    public function scopeNotDeleted($query)
+    {
+        return $query->where('is_deleted', false);
+    }
+
     // Accesseurs pour les propriétés calculées
     public function getNomCompletAttribute()
     {
@@ -122,5 +138,14 @@ class User extends Authenticatable
     public function isAgenceAdmin(): bool
     {
         return $this->agence && $this->agence->user_id === $this->id;
+    }
+
+    /**
+     * Helper: indique si cet utilisateur est administrateur de SON backoffice
+     * (i.e., il est le créateur du backoffice).
+     */
+    public function isBackofficeAdmin(): bool
+    {
+        return $this->backoffice && $this->backoffice->user_id === $this->id;
     }
 }

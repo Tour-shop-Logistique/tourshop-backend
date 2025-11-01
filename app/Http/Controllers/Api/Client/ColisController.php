@@ -74,7 +74,7 @@ class ColisController extends Controller
 
         try {
             // Calcul du tarif
-            $tarifData = $this->tarificationService->calculerTarif($request->all());
+            $tarifData = $this->tarificationService->simulerTarification($request->all());
 
             // Upload de la photo si présente
             $photoPath = null;
@@ -210,6 +210,7 @@ class ColisController extends Controller
 
         // Recherche d'utilisateurs clients par nom, prénom, téléphone ou email
         $users = \App\Models\User::where('type', 'client')
+            ->where('is_deleted', false)
             ->where(function($query) use ($request) {
                 $query->where('nom', 'like', '%' . $request->query . '%')
                       ->orWhere('prenoms', 'like', '%' . $request->query . '%')

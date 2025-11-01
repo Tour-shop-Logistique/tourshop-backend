@@ -33,12 +33,14 @@ class TarifBaseController extends Controller
             if ($request->filled('mode_expedition')) {
                 $query->where('mode_expedition', $request->mode_expedition);
             }
-            if ($request->filled('type_colis')) {
-                $query->where('type_colis', $request->type_colis);
+            if ($request->filled('pays')) {
+                $query->where('pays', $request->pays);
             }
-            if ($request->filled('actif')) {
-                $query->where('actif', filter_var($request->actif, FILTER_VALIDATE_BOOLEAN));
+
+            if ($user->type === UserType::BACKOFFICE) {
+                $query->where('backoffice_id', $user->backoffice_id);
             }
+
 
             $tarifs = $query->orderBy('indice')->orderBy('mode_expedition')->get();
 
@@ -73,6 +75,8 @@ class TarifBaseController extends Controller
                 'indice' => $request->indice,
                 'mode_expedition' => ModeExpedition::from($request->mode_expedition)->value,
                 'prix_zones' => $request->prix_zones,
+                'pays' => $user->backoffice->pays,
+                'backoffice_id' => $user->backoffice->id
             ]);
 
             return response()->json(['success' => true, 'message' => 'Tarif de base créé avec succès.', 'tarif' => $tarif], 201);
@@ -95,6 +99,22 @@ class TarifBaseController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Backoffice introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que le tarif à modifier appartient au même backoffice
+            if ($tarifBase->backoffice_id !== $backoffice->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce tarif n\'appartient pas à votre backoffice.'
+                ], 403);
+            }
+
             return response()->json(['success' => true, 'tarif' => $tarifBase]);
         } catch (Exception $e) {
             Log::error('Erreur affichage tarif base : ' . $e->getMessage());
@@ -111,6 +131,22 @@ class TarifBaseController extends Controller
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Backoffice introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que le tarif à modifier appartient au même backoffice
+            if ($tarifBase->backoffice_id !== $backoffice->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce tarif n\'appartient pas à votre backoffice.'
+                ], 403);
             }
 
             $request->validate([
@@ -143,6 +179,22 @@ class TarifBaseController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Backoffice introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que le tarif à modifier appartient au même backoffice
+            if ($tarifBase->backoffice_id !== $backoffice->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce tarif n\'appartient pas à votre backoffice.'
+                ], 403);
+            }
+
             $tarifBase->delete();
 
             return response()->json(['success' => true, 'message' => 'Tarif de base supprimé avec succès.']);
@@ -161,6 +213,22 @@ class TarifBaseController extends Controller
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Backoffice introuvable.'
+                ], 404);
+            }
+
+            // Vérifier que le tarif à modifier appartient au même backoffice
+            if ($tarifBase->backoffice_id !== $backoffice->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce tarif n\'appartient pas à votre backoffice.'
+                ], 403);
             }
 
             $tarifBase->actif = !$tarifBase->actif;

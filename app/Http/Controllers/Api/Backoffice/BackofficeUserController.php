@@ -1,58 +1,53 @@
 <?php
 
-namespace App\Http\Controllers\Api\Agence;
+namespace App\Http\Controllers\Api\Backoffice;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Models\User;
-use App\Models\Agence;
 use App\Enums\UserType;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-class AgenceUserController extends Controller
+class BackofficeUserController extends Controller
 {
     /**
-     * Liste les utilisateurs de l'agence.
-     * Réservé à l'admin créateur de l'agence.
+     * Liste tous les utilisateurs du système (tous types confondus).
+     * Réservé aux utilisateurs backoffice.
      */
     public function listUsers(Request $request)
     {
         try {
             $user = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($user->type !== UserType::BACKOFFICE || !$user->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut gérer les utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut gérer les utilisateurs.'
                 ], 403);
             }
 
-            $agence = $user->agence;
-            if (!$agence) {
+
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
             // Récupérer tous les utilisateurs de l'agence (sauf l'admin et les supprimés)
-            $users = $agence->users()->where('id', '!=', $agence->user_id)->notDeleted()->select('id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'role', 'agence_id', 'created_at')->orderBy('created_at', 'desc')->get();
+            $users = $backoffice->users()->where('id', '!=', $backoffice->user_id)->notDeleted()->select('id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'role', 'backoffice_id', 'created_at')->orderBy('created_at', 'desc')->get();
 
             return response()->json([
                 'success' => true,
-                'users' => $users,
-                // 'agence' => [
-                //     'id' => $agence->id,
-                //     'nom_agence' => $agence->nom_agence,
-                //     'admin_id' => $agence->user_id
-                // ]
+                'users' => $users
             ]);
         } catch (Exception $e) {
-            Log::error('Erreur liste utilisateurs agence : ' . $e->getMessage());
+            Log::error('Erreur liste utilisateurs backoffice : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur serveur.',
@@ -62,27 +57,27 @@ class AgenceUserController extends Controller
     }
 
     /**
-     * Crée un nouvel utilisateur rattaché à l'agence.
-     * Réservé à l'admin créateur de l'agence.
+     * Crée un nouvel utilisateur de n'importe quel type.
+     * Réservé aux utilisateurs backoffice.
      */
     public function createUser(Request $request)
     {
         try {
             $user = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($user->type !== UserType::BACKOFFICE || !$user->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut créer des utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut créer des utilisateurs.'
                 ], 403);
             }
 
-            $agence = $user->agence;
-            if (!$agence) {
+            $backoffice = $user->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
@@ -93,17 +88,16 @@ class AgenceUserController extends Controller
                 'telephone' => ['required', 'string', 'unique:users,telephone'],
                 'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users'],
                 'password' => ['required', 'string', 'min:8', 'confirmed'],
-                'type' => ['required', 'in:livreur,agence'], // Interdire la création d'autres admins agence
+                'type' => ['required', 'in:backoffice'],
             ]);
 
             // Préparer les informations de rôle pour le frontend
             $roleInfo = match (UserType::from($request->type)) {
-                UserType::AGENCE => 'is_agence_member',
-                UserType::LIVREUR => 'is_livreur',
+                UserType::BACKOFFICE => 'is_backoffice_member',
                 default => 'is_user',
             };
 
-            // Créer l'utilisateur rattaché à l'agence
+            // Créer l'utilisateur
             $newUser = User::create([
                 'nom' => $request->nom,
                 'prenoms' => $request->prenoms,
@@ -111,7 +105,7 @@ class AgenceUserController extends Controller
                 'email' => $request->email,
                 'type' => UserType::from($request->type),
                 'password' => Hash::make($request->password),
-                'agence_id' => $agence->id,
+                'backoffice_id' => $backoffice->id,
                 'actif' => true,
                 'role' => $roleInfo
             ]);
@@ -119,7 +113,7 @@ class AgenceUserController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Utilisateur créé avec succès.',
-                'user' => $newUser->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'agence_id', 'role'])
+                'user' => $newUser->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'backoffice_id', 'role'])
             ], 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -128,7 +122,7 @@ class AgenceUserController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (Exception $e) {
-            Log::error('Erreur création utilisateur agence : ' . $e->getMessage());
+            Log::error('Erreur création utilisateur backoffice : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la création de l\'utilisateur.',
@@ -138,62 +132,50 @@ class AgenceUserController extends Controller
     }
 
     /**
-     * Met à jour un utilisateur de l'agence.
-     * Réservé à l'admin créateur de l'agence.
+     * Met à jour un utilisateur de n'importe quel type.
+     * Réservé aux utilisateurs backoffice.
      */
     public function editUser(Request $request, User $user)
     {
         try {
             $adminUser = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($adminUser->type !== UserType::BACKOFFICE || !$adminUser->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut modifier les utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut modifier les utilisateurs.'
                 ], 403);
             }
 
-            $agence = $adminUser->agence;
-            if (!$agence) {
+            $backoffice = $adminUser->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
-            // Vérifier que l'utilisateur à modifier appartient à la même agence
-            if ($user->agence_id !== $agence->id) {
+            // Vérifier que l'utilisateur à modifier appartient à la même backoffice
+            if ($user->backoffice_id !== $backoffice->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                    'message' => 'Cet utilisateur n\'appartient pas à votre backoffice.'
                 ], 403);
-            }
-
-            // Empêcher la modification de l'admin créateur par lui-même (sécurité)
-            if ($user->id === $agence->user_id && $request->has('type')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de modifier le type de l\'administrateur créateur.'
-                ], 422);
             }
 
             // Validation des données
             $request->validate([
-                'nom' => ['sometimes', 'nullable', 'max:255'],
-                'prenoms' => ['sometimes', 'nullable', 'max:255'],
-                'telephone' => ['sometimes', 'nullable', 'unique:users,telephone,' . $user->id],
+                'nom' => ['sometimes', 'string', 'max:255'],
+                'prenoms' => ['sometimes', 'string', 'max:255'],
+                'telephone' => ['sometimes', 'string', 'unique:users,telephone,' . $user->id],
                 'email' => ['sometimes', 'nullable', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
-                'password' => ['sometimes', 'nullable', 'min:8', 'confirmed'],
-                // 'type' => ['sometimes', 'in:livreur,agence,backoffice'],
+                'password' => ['sometimes', 'string', 'min:8', 'confirmed'],
             ]);
 
             // Mettre à jour les champs fournis
             $updateData = $request->only(['nom', 'prenoms', 'telephone', 'email']);
 
-            // if ($request->has('type')) {
-            //     $updateData['type'] = UserType::from($request->type);
-            // }
 
             if ($request->has('password')) {
                 $updateData['password'] = Hash::make($request->password);
@@ -204,8 +186,8 @@ class AgenceUserController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Utilisateur mis à jour avec succès.',
-                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'agence_id', 'role'])
-            ]);
+                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif', 'backoffice_id', 'role'])
+           ]);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -213,7 +195,7 @@ class AgenceUserController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (Exception $e) {
-            Log::error('Erreur modification utilisateur agence : ' . $e->getMessage());
+            Log::error('Erreur modification utilisateur backoffice : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la modification de l\'utilisateur.',
@@ -230,36 +212,35 @@ class AgenceUserController extends Controller
         try {
             $adminUser = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($adminUser->type !== UserType::BACKOFFICE || !$adminUser->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut consulter les utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut consulter les utilisateurs.'
                 ], 403);
             }
-
-            $agence = $adminUser->agence;
-            if (!$agence) {
+            $backoffice = $adminUser->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
-            // Vérifier que l'utilisateur à consulter appartient à la même agence
-            if ($user->agence_id !== $agence->id) {
+            // Vérifier que l'utilisateur à modifier appartient à la même backoffice
+            if ($user->backoffice_id !== $backoffice->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                    'message' => 'Cet utilisateur n\'appartient pas à votre backoffice.'
                 ], 403);
             }
 
             return response()->json([
                 'success' => true,
-                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'agence_id', 'role', 'actif', 'created_at', 'updated_at'])
+                'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'backoffice_id', 'role', 'actif', 'created_at', 'updated_at'])
             ]);
         } catch (Exception $e) {
-            Log::error('Erreur affichage utilisateur : ' . $e->getMessage());
+            Log::error('Erreur affichage utilisateur backoffice : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur serveur.',
@@ -276,32 +257,32 @@ class AgenceUserController extends Controller
         try {
             $adminUser = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($adminUser->type !== UserType::BACKOFFICE || !$adminUser->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut modifier les utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut modifier les utilisateurs.'
                 ], 403);
             }
 
-            $agence = $adminUser->agence;
-            if (!$agence) {
+            $backoffice = $adminUser->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
-            // Vérifier que l'utilisateur à modifier appartient à la même agence
-            if ($user->agence_id !== $agence->id) {
+            // Vérifier que l'utilisateur à modifier appartient à la même backoffice
+            if ($user->backoffice_id !== $backoffice->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                    'message' => 'Cet utilisateur n\'appartient pas à votre backoffice.'
                 ], 403);
             }
 
             // Empêcher la modification de l'admin créateur par lui-même (sécurité)
-            if ($user->id === $agence->user_id && $request->has('type')) {
+            if ($user->id === $backoffice->user_id && $request->has('type')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Impossible de modifier le type de l\'administrateur créateur.'
@@ -310,56 +291,53 @@ class AgenceUserController extends Controller
 
             $user->actif = !$user->actif;
             $user->save();
+
             return response()->json([
                 'success' => true,
                 'message' => $user->actif ? 'Utilisateur activé.' : 'Utilisateur désactivé.',
                 'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'actif'])
             ]);
         } catch (Exception $e) {
-            Log::error('Erreur toggle statut utilisateur : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
+            Log::error('Erreur toggle statut utilisateur backoffice : ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur serveur.',
+                'errors' => $e->getMessage()
+            ], 500);
         }
     }
 
     /**
-     * Supprimer (soft delete) un utilisateur de l'agence.
-     * Réservé à l'admin créateur de l'agence.
+     * Supprimer (soft delete) un utilisateur.
+     * Réservé aux utilisateurs backoffice.
      */
     public function deleteUser(Request $request, User $user)
     {
         try {
             $adminUser = $request->user();
 
-            // Vérifier que l'utilisateur est de type agence et admin de son agence
-            if ($adminUser->type !== UserType::AGENCE || !$adminUser->isAgenceAdmin()) {
+            // Vérifier que l'utilisateur est de type backoffice et admin de son backoffice
+            if ($adminUser->type !== UserType::BACKOFFICE || !$adminUser->isBackofficeAdmin()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut supprimer les utilisateurs.'
+                    'message' => 'Accès non autorisé. Seul l\'administrateur du backoffice peut supprimer les utilisateurs.'
                 ], 403);
             }
 
-            $agence = $adminUser->agence;
-            if (!$agence) {
+            $backoffice = $adminUser->backoffice;
+            if (!$backoffice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Agence introuvable.'
+                    'message' => 'Backoffice introuvable.'
                 ], 404);
             }
 
-            // Vérifier que l'utilisateur à supprimer appartient à la même agence
-            if ($user->agence_id !== $agence->id) {
+            // Vérifier que l'utilisateur à modifier appartient à la même backoffice
+            if ($user->backoffice_id !== $backoffice->id) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cet utilisateur n\'appartient pas à votre agence.'
+                    'message' => 'Cet utilisateur n\'appartient pas à votre backoffice.'
                 ], 403);
-            }
-
-            // Empêcher la suppression de l'admin créateur (sécurité)
-            if ($user->id === $agence->user_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Impossible de supprimer l\'administrateur créateur.'
-                ], 422);
             }
 
             // Soft delete : marquer comme supprimé
@@ -372,7 +350,7 @@ class AgenceUserController extends Controller
                 'user' => $user->only(['id', 'nom', 'prenoms', 'telephone', 'email', 'type', 'role'])
             ]);
         } catch (Exception $e) {
-            Log::error('Erreur suppression utilisateur agence : ' . $e->getMessage());
+            Log::error('Erreur suppression utilisateur backoffice : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la suppression de l\'utilisateur.',
