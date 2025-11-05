@@ -23,24 +23,28 @@ class AgenceTarifController extends Controller
     {
         try {
             $user = $request->user();
-            if ($user->type !== UserType::AGENCE) {
-                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            // if ($user->type !== UserType::AGENCE) {
+            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            // }
+
+            $query = TarifAgence::query();
+
+            if ($user->type === UserType::AGENCE) {
+                $agence = Agence::where('user_id', $user->id)->first();
+                if (!$agence) {
+                    return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
+                }
+
+                $query->where('agence_id', $agence->id);
             }
 
-            $agence = Agence::where('user_id', $user->id)->first();
-            if (!$agence) {
-                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
+            if ($request->filled('agence_id')) {
+                $query->where('agence_id', $request->agence_id);
             }
 
-            $tarifs = TarifAgence:: //with(['tarifBase'])
-                where('agence_id', $agence->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
+            $tarifs =  $query->get();
 
-            return response()->json([
-                'success' => true,
-                'tarifs' => $tarifs
-            ]);
+            return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
             Log::error('Erreur listing tarifs agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);

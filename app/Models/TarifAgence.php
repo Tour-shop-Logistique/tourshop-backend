@@ -26,11 +26,11 @@ class TarifAgence extends Model
 
         // Calculer automatiquement les montants pour chaque zone lors de la sauvegarde
         static::saving(function ($model) {
-            // Copier l'indice du tarif de base
-            if ($model->tarif_base_id && !$model->indice) {
-                $tarifBase = TarifBase::find($model->tarif_base_id);
-                if ($tarifBase) {
-                    $model->indice = $tarifBase->indice;
+            // Copier l'indice du tarif simple
+            if ($model->tarif_simple_id && !$model->indice) {
+                $tarifSimple = TarifSimple::find($model->tarif_simple_id);
+                if ($tarifSimple) {
+                    $model->indice = $tarifSimple->indice;
                 }
             }
 
@@ -38,11 +38,11 @@ class TarifAgence extends Model
                 $prixZones = $model->prix_zones;
                 foreach ($prixZones as &$zone) {
                     if (isset($zone['pourcentage_prestation'])) {
-                        // Récupérer le montant_expedition_base du tarif de base pour cette zone
-                        if ($model->tarif_base_id) {
-                            $tarifBase = $tarifBase ?? TarifBase::find($model->tarif_base_id);
-                            if ($tarifBase) {
-                                $zoneBase = $tarifBase->getPrixPourZone($zone['zone_destination_id']);
+                        // Récupérer le montant_expedition_base du tarif simple pour cette zone
+                        if ($model->tarif_simple_id) {
+                            $tarifSimple = $tarifSimple ?? TarifSimple::find($model->tarif_simple_id);
+                            if ($tarifSimple) {
+                                $zoneBase = $tarifSimple->getPrixPourZone($zone['zone_destination_id']);
                                 if ($zoneBase) {
                                     $zone['montant_base'] = $zoneBase['montant_base'];
                                     $zone['montant_prestation'] = round(($zoneBase['montant_base'] * $zone['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
@@ -62,7 +62,7 @@ class TarifAgence extends Model
      */
     protected $fillable = [
         'agence_id',
-        'tarif_base_id',
+        'tarif_simple_id',
         'indice',
         'prix_zones',
         'actif',
@@ -86,11 +86,11 @@ class TarifAgence extends Model
     }
 
     /**
-     * Un tarif d'agence est basé sur un tarif de base
+     * Un tarif d'agence est basé sur un tarif simple
      */
-    public function tarifBase(): BelongsTo
+    public function tarifSimple(): BelongsTo
     {
-        return $this->belongsTo(TarifBase::class, 'tarif_base_id');
+        return $this->belongsTo(TarifSimple::class, 'tarif_simple_id');
     }
 
     /**
@@ -118,7 +118,7 @@ class TarifAgence extends Model
     {
         return $query->where('agence_id', $agenceId)
             ->where('actif', true)
-            ->whereHas('tarifBase', function ($subQuery) use ($zoneDestination, $modeExpedition, $indiceTrancheArrondi, $typeColis) {
+            ->whereHas('tarifSimple', function ($subQuery) use ($zoneDestination, $modeExpedition, $indiceTrancheArrondi, $typeColis) {
                 $subQuery->where('indice', $indiceTrancheArrondi)
                     ->where('mode_expedition', $modeExpedition)
                     ->where('actif', true);
@@ -130,7 +130,7 @@ class TarifAgence extends Model
                     $subQuery->whereNull('type_colis');
                 }
 
-                // Vérifier que le tarif de base contient la zone demandée
+                // Vérifier que le tarif simple contient la zone demandée
                 $subQuery->whereJsonContains('prix_zones', function ($zone) use ($zoneDestination) {
                     return $zone['zone_destination_id'] === $zoneDestination;
                 });

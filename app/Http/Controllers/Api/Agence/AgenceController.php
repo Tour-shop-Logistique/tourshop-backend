@@ -17,6 +17,37 @@ use Illuminate\Support\Facades\Storage;
 class AgenceController extends Controller
 {
 
+    public function listAgences(Request $request)
+    {
+        try {
+            $user = $request->user();
+            // if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN, UserType::AGENCE])) {
+            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            // }
+
+            $query = Agence::query();
+
+            if ($request->filled('pays')) {
+                $query->where('pays', $request->pays);
+            }
+
+            if ($user->type === UserType::BACKOFFICE) {
+                $query->where('pays', $user->backoffice->pays);
+            }
+
+            $agences = $query->orderBy('nom_agence')->get();
+
+            return response()->json(['success' => true, 'agences' => $agences]);
+        } catch (Exception $e) {
+            Log::error('Erreur lors de la récupération des agences : ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur serveur.',
+                'errors' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Enregistre les informations d'agence pour un utilisateur de type 'agence'.
      * L'utilisateur doit être authentifié et de type 'agence'.

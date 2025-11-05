@@ -17,14 +17,14 @@ return new class extends Migration
             // Référence obligatoire vers l'agence
             $table->uuid('agence_id');
 
-            // Référence obligatoire vers le tarif de base
-            $table->uuid('tarif_base_id');
+            // Référence obligatoire vers le tarif simple
+            $table->uuid('tarif_simple_id');
 
-            // Indice copié du tarif de base (pour faciliter les requêtes)
+            // Indice copié du tarif simple (pour faciliter les requêtes)
             $table->decimal('indice', 5, 1);
 
             // Prix personnalisés par zone (JSON array)
-            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_agence, montant_prestation_agence, montant_expedition_agence}
+            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_simple, montant_prestation_simple, montant_expedition_simple}
             $table->json('prix_zones');
 
             // Statut
@@ -33,10 +33,10 @@ return new class extends Migration
 
             // Contraintes de clés étrangères
             $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
-            $table->foreign('tarif_base_id')->references('id')->on('tarifs_base')->onDelete('cascade');
+            $table->foreign('tarif_simple_id')->references('id')->on('tarifs_simple')->onDelete('cascade');
 
-            // Contrainte d'unicité : une agence ne peut avoir qu'un seul tarif par tarif de base
-            $table->unique(['agence_id', 'tarif_base_id']);
+            // Contrainte d'unicité : une agence ne peut avoir qu'un seul tarif par tarif simple
+            $table->unique(['agence_id', 'tarif_simple_id']);
 
             // Index pour optimiser les recherches
             $table->index(['agence_id', 'actif']);

@@ -9,11 +9,11 @@ use Illuminate\Support\Str;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
 
-class TarifBase extends Model
+class TarifSimple extends Model
 {
     use HasFactory;
 
-    protected $table = 'tarifs_base';
+    protected $table = 'tarifs_simple';
 
     protected $primaryKey = 'id';
     protected $keyType = 'string';
@@ -73,7 +73,7 @@ class TarifBase extends Model
      */
     public function tarifsAgence(): HasMany
     {
-        return $this->hasMany(TarifAgence::class, 'tarif_base_id');
+        return $this->hasMany(TarifAgence::class, 'tarif_simple_id');
     }
 
     /**

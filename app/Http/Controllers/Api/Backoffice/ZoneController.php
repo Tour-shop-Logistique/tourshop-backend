@@ -18,15 +18,14 @@ class ZoneController extends Controller
     public function listZones(Request $request)
     {
         try {
-            $query = Zone::query();
-            if ($request->filled('actif')) {
-                $query->where('actif', filter_var($request->actif, FILTER_VALIDATE_BOOLEAN));
-            }
-            if ($request->filled('search')) {
-                $query->where('nom', 'like', '%' . $request->search . '%');
+            $user = $request->user();
+            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN, UserType::AGENCE])) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $zones = $query->orderBy('id')->get();
+            $query = Zone::query();
+            $zones = $query->get();
+            
             return response()->json(['success' => true, 'zones' => $zones]);
         } catch (Exception $e) {
             Log::error('Erreur listing zones : ' . $e->getMessage());

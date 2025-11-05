@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tarifs_base', function (Blueprint $table) {
+        Schema::create('tarifs_simple', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('backoffice_id')->nullable();
             $table->foreign('backoffice_id')->references('id')->on('backoffices')->onDelete('set null')->onUpdate('cascade');
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('type_colis')->nullable(); // Requis pour groupage, null pour simple
             $table->string('pays')->nullable();
             // Prix par zone (JSON array)
-            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_base, montant_prestation_base, montant_expedition_base}
+            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_simple, montant_prestation_simple, montant_expedition_simple}
             $table->json('prix_zones');
 
             // Statut
@@ -38,6 +38,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tarifs_base');
+        Schema::dropIfExists('tarifs_simple');
     }
 };
