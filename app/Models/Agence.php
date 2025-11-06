@@ -34,7 +34,6 @@ class Agence extends Model
         'ville',
         'commune',
         'pays',
-        'tarif_code',
         'latitude',
         'longitude',
         'horaires',
@@ -73,12 +72,10 @@ class Agence extends Model
         return $this->hasMany(Colis::class, 'agence_id');
     }
 
-    /**
-     * Le tarif personnalisé actuel de l'agence (via le code)
-     */
-    public function tarifPersonnalise()
+    public function tarifs()
     {
-        return $this->belongsTo(TarifPersonnalise::class, 'tarif_code', 'code');
+        // Une agence peut avoir plusieurs tarifs
+        return $this->hasMany(TarifAgence::class);
     }
 
     // Scopes

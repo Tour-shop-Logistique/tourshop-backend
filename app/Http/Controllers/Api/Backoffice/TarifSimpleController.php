@@ -84,7 +84,7 @@ class TarifSimpleController extends Controller
                 'backoffice_id' => $user->backoffice->id
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Tarif de base créé avec succès.', 'tarif' => $tarif]);
+            return response()->json(['success' => true, 'message' => 'Tarif de base créé avec succès.', 'tarif' => $tarif], 201);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {

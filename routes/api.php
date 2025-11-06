@@ -11,7 +11,6 @@ use App\Http\Controllers\Api\Agence\AgenceUserController;
 use App\Http\Controllers\Api\Agence\AgenceNotificationController;
 use App\Http\Controllers\Api\Agence\AgenceTarifController;
 use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
-use App\Http\Controllers\Api\Backoffice\TarifPersonnaliseController;
 use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
@@ -117,8 +116,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/delete-user/{user}', [AgenceUserController::class, 'deleteUser']);
 
         // Gestion des tarifs de l'agence
-        Route::get('/tarif-actuel', [AgenceTarifController::class, 'getTarifActuel']);
-        Route::post('/assigner-code-tarif', [AgenceTarifController::class, 'assignerCodeTarif']);
+        Route::get('/list-tarifs', [AgenceTarifController::class, 'listTarifs']);
+        Route::post('/add-tarif-simple', [AgenceTarifController::class, 'addTarifSimple']);
+        Route::put('/edit-tarif-simple/{tarif}', [AgenceTarifController::class, 'editTarifSimple']);
+        Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'showTarif']);
+        Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'deleteTarif']);
+        Route::put('/status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatusTarif']);
     });
 
     // Routes backoffice
@@ -138,21 +141,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Routes tarification par le backoffice
     Route::prefix('tarification')->group(function () {
-        // Tarifs simples (de base)
         Route::get('/list', [TarifSimpleController::class, 'listTarif']);
         Route::post('/add-simple', [TarifSimpleController::class, 'addTarifSimple']);
         Route::put('/edit-simple/{tarif}', [TarifSimpleController::class, 'editTarifSimple']);
         Route::get('/show/{tarif}', [TarifSimpleController::class, 'showTarif']);
         Route::delete('/delete/{tarif}', [TarifSimpleController::class, 'deleteTarif']);
         Route::put('/status/{tarif}', [TarifSimpleController::class, 'toggleStatusTarif']);
-
-        // Tarifs personnalisés
-        Route::get('/list-custom', [TarifPersonnaliseController::class, 'listTarifCustom']);
-        Route::post('/add-simple-custom', [TarifPersonnaliseController::class, 'addTarifCustom']);
-        Route::put('/edit-simple-custom/{tarif}', [TarifPersonnaliseController::class, 'editTarifCustom']);
-        Route::get('/show-custom/{tarif}', [TarifPersonnaliseController::class, 'showTarifCustom']);
-        Route::delete('/delete-custom/{tarif}', [TarifPersonnaliseController::class, 'deleteTarifCustom']);
-        Route::put('/status-custom/{tarif}', [TarifPersonnaliseController::class, 'toggleStatusTarifCustom']);
 
         // Route::post('/simuler', [TarificationController::class, 'simuler']);
         // Route::get('/zones-disponibles', [TarificationController::class, 'zonesDisponibles']);
