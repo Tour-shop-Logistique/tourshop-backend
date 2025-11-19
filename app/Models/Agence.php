@@ -78,12 +78,6 @@ class Agence extends Model
         return $this->hasMany(TarifAgence::class);
     }
 
-    // Scopes
-    public function scopeActives($query)
-    {
-        return $query->where('actif', true);
-    }
-
     public function scopeDansZone($query, $latitude, $longitude)
     {
         return $query->selectRaw(
@@ -91,6 +85,8 @@ class Agence extends Model
         )->havingRaw('distance <= zone_couverture_km');
     }
 
- 
-
+    public function scopeActif($query)
+    {
+        return $query->where('actif', true);
+    }
 }

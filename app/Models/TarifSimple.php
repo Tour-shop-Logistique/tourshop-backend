@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use App\Enums\ModeExpedition;
-use App\Enums\TypeColis;
 
 class TarifSimple extends Model
 {
@@ -50,7 +49,6 @@ class TarifSimple extends Model
     protected $fillable = [
         'indice',
         'mode_expedition',
-        'type_colis',
         'prix_zones',
         'actif',
         'pays',
@@ -64,7 +62,6 @@ class TarifSimple extends Model
         'indice' => 'decimal:1',
         'prix_zones' => 'array',
         'mode_expedition' => ModeExpedition::class,
-        'type_colis' => TypeColis::class,
         'actif' => 'boolean',
     ];
 
@@ -86,9 +83,7 @@ class TarifSimple extends Model
             ->where('actif', true);
 
         // Pour le mode groupage, le type_colis doit correspondre
-        if ($modeExpedition === ModeExpedition::GROUPAGE->value && $typeColis) {
-            $query->where('type_colis', $typeColis);
-        } elseif ($modeExpedition === ModeExpedition::SIMPLE->value) {
+        if ($modeExpedition === ModeExpedition::SIMPLE->value) {
             $query->whereNull('type_colis');
         }
 
@@ -118,18 +113,13 @@ class TarifSimple extends Model
         return null;
     }
 
-    /**
-     * Scope pour les tarifs actifs
-     */
-    public function scopeActif($query)
-    {
-        return $query->where('actif', true);
-    }
-
-     public function backoffice()
+    public function backoffice()
     {
         return $this->belongsTo(Backoffice::class, 'backoffice_id');
     }
 
-
+    public function scopeActif($query)
+    {
+        return $query->where('actif', true);
+    }
 }

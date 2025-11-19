@@ -137,9 +137,6 @@ class TarifAgence extends Model
             });
     }
 
-    /**
-     * Scope pour les tarifs actifs
-     */
     public function scopeActif($query)
     {
         return $query->where('actif', true);

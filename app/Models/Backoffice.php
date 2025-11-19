@@ -44,7 +44,7 @@ class Backoffice extends Model
 
     protected $casts = [
         'actif' => 'boolean',
-        
+
     ];
 
     // Relations
@@ -64,8 +64,8 @@ class Backoffice extends Model
     {
         // Les membres backoffice (non admin, non supprimés)
         return $this->hasMany(User::class, 'backoffice_id')
-                   ->where('id', '!=', $this->user_id)
-                   ->notDeleted();
+            ->where('id', '!=', $this->user_id)
+            ->notDeleted();
     }
 
     // Scopes
@@ -74,9 +74,13 @@ class Backoffice extends Model
         return $query->where('actif', true);
     }
 
-      public function tarifs()
+    public function tarifSimple()
     {
-        // Une agence peut avoir plusieurs tarifs
-        return $this->hasMany(TarifBase::class);
+        return $this->hasMany(TarifSimple::class);
+    }
+
+    public function tarifGroupage()
+    {
+        return $this->hasMany(TarifGroupage::class);
     }
 }

@@ -34,7 +34,7 @@ class Zone extends Model
 
     public function tarifsBase(): HasMany
     {
-        return $this->hasMany(TarifBase::class, 'zone_destination_id');
+        return $this->hasMany(TarifSimple::class, 'zone_destination_id');
     }
 
     /**
@@ -43,5 +43,10 @@ class Zone extends Model
     public function contientPays(string $pays): bool
     {
         return in_array(strtolower($pays), array_map('strtolower', $this->pays ?? []));
+    }
+
+    public function scopeActif($query)
+    {
+        return $query->where('actif', true);
     }
 }

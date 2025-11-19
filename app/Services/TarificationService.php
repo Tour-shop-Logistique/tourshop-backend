@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\TarifBase;
+use App\Models\TarifSimple;
 use App\Models\TarifAgence;
 use App\Models\Zone;
+use App\Models\CategoryProduct;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
 
@@ -79,33 +80,32 @@ class TarificationService
                     return [
                         'source' => 'agence',
                         'id' => $tarifAgence->id,
-                        'indice' => (float) $tarifAgence->indice,
+                        'indice' => $indiceArrondi,
                         'agence_nom' => optional($tarifAgence->agence)->nom,
                         'montant_base' => round((float) $prixZoneAgence['montant_base'], 2, PHP_ROUND_HALF_UP),
                         'pourcentage_prestation' => round((float) $prixZoneAgence['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
                         'montant_prestation' => round((float) $prixZoneAgence['montant_prestation'], 2, PHP_ROUND_HALF_UP),
                         'montant_expedition' => round((float) $prixZoneAgence['montant_expedition'], 2, PHP_ROUND_HALF_UP),
-                        'indice' => $indiceArrondi
+
                     ];
                 }
             }
         }
 
         // 2) Sinon on cherche un tarif de base
-        $tarifBase = TarifBase::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)->first();
+        $tarifBase = TarifSimple::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)->first();
         if ($tarifBase) {
             $prixZone = $tarifBase->getPrixPourZone($zoneDestination);
             if ($prixZone) {
                 return [
                     'source' => 'base',
                     'id' => $tarifBase->id,
-                    'indice' => (float) $tarifBase->indice,
+                    'indice' => $indiceArrondi,
                     'agence_nom' => null,
                     'montant_base' => round((float) $prixZone['montant_base'], 2, PHP_ROUND_HALF_UP),
                     'pourcentage_prestation' => round((float) $prixZone['pourcentage_prestation_base'], 2, PHP_ROUND_HALF_UP),
                     'montant_prestation' => round((float) $prixZone['montant_prestation_base'], 2, PHP_ROUND_HALF_UP),
                     'montant_expedition' => round((float) $prixZone['montant_expedition_base'], 2, PHP_ROUND_HALF_UP),
-                    'indice' => $indiceArrondi
                 ];
             }
         }
@@ -140,16 +140,45 @@ class TarificationService
         $indiceReference = $this->determinerIndiceReference($donnees['poids'], $donnees['longueur'] ?? 0, $donnees['largeur'] ?? 0, $donnees['hauteur'] ?? 0);
         $indiceArrondi = $this->arrondirIndice($indiceReference);
         if (!$tarif) {
-            return [
-                'success' => false,
-                'message' => 'Aucun tarif trouvé pour ces critères.',
-                'details' => [
-                    'zone_destination' => $zoneDestination->nom,
-                    'type_colis' => $donnees['type_colis'] ?? null,
-                    'mode_expedition' => $donnees['mode_expedition'],
-                    'indice_calcule' => $indiceArrondi
-                ]
-            ];
+            // Fallback groupage: utiliser le prix/kg de la catégorie si fourni
+            if (($donnees['mode_expedition'] ?? null) === ModeExpedition::GROUPAGE->value && !empty($donnees['category_id'])) {
+                $category = CategoryProduct::find($donnees['category_id']);
+                if ($category && $category->prix_kg !== null) {
+                    $prixBase = (float) $category->prix_kg * (float) $donnees['poids'];
+                    $tarif = [
+                        'source' => 'category_prix_kg',
+                        'id' => $category->id,
+                        'indice' => $indiceArrondi,
+                        'agence_nom' => null,
+                        'montant_base' => round($prixBase, 2, PHP_ROUND_HALF_UP),
+                        'pourcentage_prestation' => 0.0,
+                        'montant_prestation' => 0.0,
+                        'montant_expedition' => round($prixBase, 2, PHP_ROUND_HALF_UP),
+                    ];
+                } else {
+                    return [
+                        'success' => false,
+                        'message' => 'Aucun tarif par intervalle et aucun prix/kg de catégorie disponible.',
+                        'details' => [
+                            'zone_destination' => $zoneDestination->nom,
+                            'category_id' => $donnees['category_id'] ?? null,
+                            'mode_expedition' => $donnees['mode_expedition'],
+                            'indice_calcule' => $indiceArrondi
+                        ]
+                    ];
+                }
+            } else {
+                return [
+                    'success' => false,
+                    'message' => 'Aucun tarif trouvé pour ces critères.',
+                    'details' => [
+                        'zone_destination' => $zoneDestination->nom,
+                        'type_colis' => $donnees['type_colis'] ?? null,
+                        'mode_expedition' => $donnees['mode_expedition'],
+                        'indice_calcule' => $indiceArrondi
+                    ]
+                ];
+            }
         }
 
         // Prix final = montant_expedition fourni par le tarif normalisé

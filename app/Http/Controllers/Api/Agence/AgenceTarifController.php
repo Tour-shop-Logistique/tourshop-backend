@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use App\Models\Agence;
 use App\Models\TarifAgence;
-use App\Models\TarifBase;
+use App\Models\TarifSimple;
 use App\Enums\UserType;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
@@ -92,7 +92,7 @@ class AgenceTarifController extends Controller
             ]);
 
             // Vérifier l'existence du tarif de base et actif
-            $tarifBase = TarifBase::actif()->find($request->tarif_base_id);
+            $tarifBase = TarifSimple::actif()->find($request->tarif_base_id);
             if (!$tarifBase) {
                 return response()->json(['success' => false, 'message' => 'Tarif de base introuvable ou inactif.'], 404);
             }

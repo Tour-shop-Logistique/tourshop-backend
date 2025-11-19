@@ -11,6 +11,9 @@ use App\Http\Controllers\Api\Agence\AgenceUserController;
 use App\Http\Controllers\Api\Agence\AgenceNotificationController;
 use App\Http\Controllers\Api\Agence\AgenceTarifController;
 use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
+use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
+use App\Http\Controllers\Api\Backoffice\ProduitsController;
+use App\Http\Controllers\Api\Backoffice\CategoryProductController;
 use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
@@ -141,18 +144,41 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Routes tarification par le backoffice
     Route::prefix('tarification')->group(function () {
-        Route::get('/list', [TarifSimpleController::class, 'listTarif']);
-        Route::post('/add-simple', [TarifSimpleController::class, 'addTarifSimple']);
-        Route::put('/edit-simple/{tarif}', [TarifSimpleController::class, 'editTarifSimple']);
-        Route::get('/show/{tarif}', [TarifSimpleController::class, 'showTarif']);
-        Route::delete('/delete/{tarif}', [TarifSimpleController::class, 'deleteTarif']);
-        Route::put('/status/{tarif}', [TarifSimpleController::class, 'toggleStatusTarif']);
+        // Tarification simple
+        Route::get('/list-simple', [TarifSimpleController::class, 'list']);
+        Route::post('/add-simple', [TarifSimpleController::class, 'add']);
+        Route::put('/edit-simple/{tarif}', [TarifSimpleController::class, 'edit']);
+        Route::get('/show-simple/{tarif}', [TarifSimpleController::class, 'show']);
+        Route::delete('/delete-simple/{tarif}', [TarifSimpleController::class, 'delete']);
+        Route::put('/status-simple/{tarif}', [TarifSimpleController::class, 'toggleStatus']);
 
-        // Route::post('/simuler', [TarificationController::class, 'simuler']);
-        // Route::get('/zones-disponibles', [TarificationController::class, 'zonesDisponibles']);
+        // Tarification groupage
+        Route::get('/list-groupage', [TarifGroupageController::class, 'list']);
+        Route::post('/add-groupage', [TarifGroupageController::class, 'add']);
+        Route::put('/edit-groupage/{tarif}', [TarifGroupageController::class, 'edit']);
+        Route::get('/show-groupage/{tarif}', [TarifGroupageController::class, 'show']);
+        Route::delete('/delete-groupage/{tarif}', [TarifGroupageController::class, 'delete']);
+        Route::put('/status-groupage/{tarif}', [TarifGroupageController::class, 'toggleStatus']);
     });
 
-    // Routes backoffice: gestion des zones
+    // Routes catégories, produits
+    Route::prefix('produits')->group(function () {
+        Route::get('/list-categories', [CategoryProductController::class, 'list']);
+        Route::post('/add-category', [CategoryProductController::class, 'add']);
+        Route::put('/edit-category/{category}', [CategoryProductController::class, 'edit']);
+        Route::get('/show-category/{category}', [CategoryProductController::class, 'show']);
+        Route::delete('/delete-category/{category}', [CategoryProductController::class, 'delete']);
+        Route::put('/status-category/{category}', [CategoryProductController::class, 'toggleStatus']);
+
+        Route::get('/list', [ProduitsController::class, 'list']);
+        Route::post('/add', [ProduitsController::class, 'add']);
+        Route::put('/edit/{product}', [ProduitsController::class, 'edit']);
+        Route::get('/show/{product}', [ProduitsController::class, 'show']);
+        Route::delete('/delete/{product}', [ProduitsController::class, 'delete']);
+        Route::put('/status/{product}', [ProduitsController::class, 'toggleStatus']);
+    });
+
+    // Routes zones
     Route::prefix('zones')->group(function () {
         Route::get('/list', [ZoneController::class, 'listZones']);
         Route::post('/add', [ZoneController::class, 'addZone']);
