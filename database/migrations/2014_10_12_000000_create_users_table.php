@@ -27,9 +27,7 @@ return new class extends Migration
             $table->string('role')->nullable();
             $table->rememberToken();
             $table->timestamps();
-            $table->foreign('agence_id')->references('id')->on('agences')->nullOnDelete()->cascadeOnUpdate();
-            $table->foreign('backoffice_id')->references('id')->on('backoffices')->nullOnDelete()->cascadeOnUpdate();
-        });
+                    });
     }
 
     public function down(): void

@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('tarifs_agence', function (Blueprint $table) {
+        Schema::create('tarifs_agence_simple', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
             // Référence obligatoire vers l'agence
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->decimal('indice', 5, 1);
 
             // Prix personnalisés par zone (JSON array)
-            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation_simple, montant_prestation_simple, montant_expedition_simple}
+            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
             $table->json('prix_zones');
 
             // Statut
@@ -51,6 +51,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('tarifs_agence');
+        Schema::dropIfExists('tarifs_agence_simple');
     }
 };

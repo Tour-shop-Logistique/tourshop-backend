@@ -19,7 +19,7 @@ class AgenceTarifController extends Controller
     /**
      * Liste des tarifs de l'agence.
      */
-    public function listTarifs(Request $request)
+    public function list(Request $request)
     {
         try {
             $user = $request->user();
@@ -42,7 +42,7 @@ class AgenceTarifController extends Controller
                 $query->where('agence_id', $request->agence_id);
             }
 
-            $tarifs =  $query->get();
+            $tarifs = $query->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
@@ -54,67 +54,52 @@ class AgenceTarifController extends Controller
     /**
      * Créer un nouveau tarif pour l'agence.
      */
-    public function addTarifSimple(Request $request)
+    public function add(Request $request)
     {
         try {
             $user = $request->user();
 
-            // if ($user->type !== UserType::AGENCE) {
-            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
-            // }
-
-            // $agence = Agence::where('user_id', $user->id)->first();
-            // if (!$agence) {
-            //     return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
-            // }
-
             // Vérifier que l'utilisateur est de type agence et admin de son agence
             if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut créer des utilisateurs.'
-                ], 403);
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
             $agence = $user->agence;
             if (!$agence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Agence introuvable.'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
             }
 
             $request->validate([
-                'tarif_base_id' => ['required', 'uuid', 'exists:tarifs_base,id'],
+                'tarif_simple_id' => ['required', 'uuid', 'exists:tarifs_simple,id'],
                 'prix_zones' => ['required', 'array', 'min:1'],
                 'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
                 'prix_zones.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            // Vérifier l'existence du tarif de base et actif
-            $tarifBase = TarifSimple::actif()->find($request->tarif_base_id);
-            if (!$tarifBase) {
-                return response()->json(['success' => false, 'message' => 'Tarif de base introuvable ou inactif.'], 404);
+            // Vérifier l'existence du tarif de simple et actif
+            $tarifSimple = TarifSimple::actif()->find($request->tarif_simple_id);
+            if (!$tarifSimple) {
+                return response()->json(['success' => false, 'message' => 'Tarif de simple introuvable ou inactif.'], 404);
             }
 
-            // Vérifier que toutes les zones fournies existent dans le tarif de base
-            $zonesBase = collect($tarifBase->prix_zones)->pluck('zone_destination_id')->toArray();
+            // Vérifier que toutes les zones fournies existent dans le tarif de simple
+            $zonesSimple = collect($tarifSimple->prix_zones)->pluck('zone_destination_id')->toArray();
             $zonesAgence = collect($request->prix_zones)->pluck('zone_destination_id')->toArray();
-            $zonesMissing = array_diff($zonesAgence, $zonesBase);
+            $zonesMissing = array_diff($zonesAgence, $zonesSimple);
             if (!empty($zonesMissing)) {
-                return response()->json(['success' => false, 'message' => 'Zones non trouvées dans le tarif de base: ' . implode(', ', $zonesMissing)], 422);
+                return response()->json(['success' => false, 'message' => 'Zones non trouvées dans le tarif de simple: ' . implode(', ', $zonesMissing)], 422);
             }
 
             $tarif = TarifAgence::create([
                 'agence_id' => $agence->id,
-                'tarif_base_id' => $tarifBase->id,
+                'tarif_simple_id' => $tarifSimple->id,
                 'prix_zones' => $request->prix_zones,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Tarif créé avec succès.',
-                'tarif' => $tarif //->load('tarifBase')
+                'tarif' => $tarif //->load('tarifSimple')
             ], 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -131,7 +116,7 @@ class AgenceTarifController extends Controller
     /**
      * Mettre à jour un tarif.
      */
-    public function editTarifSimple(Request $request, TarifAgence $tarif)
+    public function edit(Request $request, TarifAgence $tarif)
     {
         try {
             $user = $request->user();
@@ -147,18 +132,12 @@ class AgenceTarifController extends Controller
 
             // Vérifier que l'utilisateur est de type agence et admin de son agence
             if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut créer des utilisateurs.'
-                ], 403);
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
             $agence = $user->agence;
             if (!$agence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Agence introuvable.'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
             }
 
             // Vérifier que le tarif appartient à cette agence
@@ -177,7 +156,7 @@ class AgenceTarifController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Tarif mis à jour avec succès.',
-                'tarif' => $tarif //->load('tarifBase')
+                'tarif' => $tarif //->load('tarifSimple')
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -194,7 +173,7 @@ class AgenceTarifController extends Controller
     /**
      * Afficher un tarif spécifique.
      */
-    public function showTarif(Request $request, TarifAgence $tarif)
+    public function show(Request $request, TarifAgence $tarif)
     {
         try {
             $user = $request->user();
@@ -202,7 +181,7 @@ class AgenceTarifController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $agence = Agence::where('user_id', $user->id)->first();
+            $agence = $user->agence;
             if (!$agence) {
                 return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
             }
@@ -214,7 +193,7 @@ class AgenceTarifController extends Controller
 
             return response()->json([
                 'success' => true,
-                'tarif' => $tarif //->load('tarifBase')
+                'tarif' => $tarif->load('tarifSimple')
             ]);
         } catch (Exception $e) {
             Log::error('Erreur affichage tarif agence : ' . $e->getMessage());
@@ -225,7 +204,7 @@ class AgenceTarifController extends Controller
     /**
      * Supprimer un tarif.
      */
-    public function deleteTarif(Request $request, TarifAgence $tarif)
+    public function delete(Request $request, TarifAgence $tarif)
     {
         try {
             $user = $request->user();
@@ -241,18 +220,12 @@ class AgenceTarifController extends Controller
 
             // Vérifier que l'utilisateur est de type agence et admin de son agence
             if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut créer des utilisateurs.'
-                ], 403);
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
             $agence = $user->agence;
             if (!$agence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Agence introuvable.'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
             }
 
             // Vérifier que le tarif appartient à cette agence
@@ -272,7 +245,7 @@ class AgenceTarifController extends Controller
     /**
      * Activer/désactiver un tarif.
      */
-    public function toggleStatusTarif(Request $request, TarifAgence $tarif)
+    public function toggleStatus(Request $request, TarifAgence $tarif)
     {
         try {
             $user = $request->user();
@@ -288,18 +261,12 @@ class AgenceTarifController extends Controller
 
             // Vérifier que l'utilisateur est de type agence et admin de son agence
             if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seul l\'administrateur de l\'agence peut créer des utilisateurs.'
-                ], 403);
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
             $agence = $user->agence;
             if (!$agence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Agence introuvable.'
-                ], 404);
+                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
             }
 
             // Vérifier que le tarif appartient à cette agence

@@ -37,7 +37,9 @@ class TarificationController extends Controller
                 'largeur' => ['required_if:mode_expedition,simple', 'numeric', 'min:0'],
                 'hauteur' => ['required_if:mode_expedition,simple', 'numeric', 'min:0'],
                 // Option livraison domicile pour groupage
-                'livraison_domicile' => ['sometimes', 'boolean']
+                'livraison_domicile' => ['sometimes', 'boolean'],
+                // Catégorie groupage pour fallback/priorité
+                'category_id' => ['sometimes', 'uuid', 'exists:category_products,id'],
             ]);
 
             // Utiliser le service de tarification pour la simulation
@@ -50,7 +52,8 @@ class TarificationController extends Controller
                 'longueur' => $request->longueur ?? 0,
                 'largeur' => $request->largeur ?? 0,
                 'hauteur' => $request->hauteur ?? 0,
-                'livraison_domicile' => $request->get('livraison_domicile', false)
+                'livraison_domicile' => $request->get('livraison_domicile', false),
+                'category_id' => $request->get('category_id'),
             ]);
 
             if (!$resultat['success']) {

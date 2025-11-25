@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\TarifSimple;
 use App\Models\TarifAgence;
+use App\Models\TarifAgenceGroupage;
 use App\Models\Zone;
 use App\Models\CategoryProduct;
 use App\Enums\ModeExpedition;
@@ -62,14 +63,44 @@ class TarificationService
         float $longueur = 0,
         float $largeur = 0,
         float $hauteur = 0,
-        ?string $agenceId = null
+        ?string $agenceId = null,
+        ?string $categoryId = null,
+        bool $livraisonDomicile = false
     ): ?array {
         // Calculer l'indice de référence
         $indiceReference = $this->determinerIndiceReference($poids, $longueur, $largeur, $hauteur);
         $indiceArrondi = $this->arrondirIndice($indiceReference);
 
-        // 1) Si une agence est fournie, on cherche d'abord un tarif d'agence basé sur un tarif de base correspondant
+        // 1) Si une agence est fournie, on cherche d'abord un tarif d'agence
         if ($agenceId) {
+            // 1.a) Priorité: tarif d'agence GROUPAGE spécifique à la catégorie et au mode (agence/domicile)
+            if ($modeExpedition === ModeExpedition::GROUPAGE->value && !empty($categoryId)) {
+                $modeLivraison = $livraisonDomicile ? 'domicile' : 'agence';
+                $tag = TarifAgenceGroupage::where('agence_id', $agenceId)
+                    ->where('category_id', $categoryId)
+                    ->actif()
+                    ->first();
+
+                if ($tag) {
+                    $prixModes = $tag->prix_modes ?? [];
+                    foreach ($prixModes as $m) {
+                        if (($m['mode'] ?? null) === $modeLivraison) {
+                            return [
+                                'source' => 'agence_groupage',
+                                'id' => $tag->id,
+                                'indice' => null,
+                                'agence_nom' => optional($tag->agence)->nom,
+                                'montant_base' => round((float) $m['montant_base'], 2, PHP_ROUND_HALF_UP),
+                                'pourcentage_prestation' => round((float) $m['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
+                                'montant_prestation' => round((float) $m['montant_prestation'], 2, PHP_ROUND_HALF_UP),
+                                'montant_expedition' => round((float) $m['montant_expedition'], 2, PHP_ROUND_HALF_UP),
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // 1.b) Sinon, tenter le tarif d'agence "simple" existant basé sur un tarif de base correspondant
             $tarifAgence = TarifAgence::with('tarifBase')
                 ->pourCriteres($agenceId, $zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)
                 ->first();
@@ -133,7 +164,9 @@ class TarificationService
             $donnees['longueur'] ?? 0,
             $donnees['largeur'] ?? 0,
             $donnees['hauteur'] ?? 0,
-            $donnees['agence_id'] ?? null
+            $donnees['agence_id'] ?? null,
+            $donnees['category_id'] ?? null,
+            (bool) ($donnees['livraison_domicile'] ?? false)
         );
 
         // Aucun tarif trouvé
