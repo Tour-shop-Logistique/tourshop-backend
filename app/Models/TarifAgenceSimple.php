@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
-class TarifAgence extends Model
+class TarifAgenceSimple extends Model
 {
     use HasFactory;
 
-    protected $table = 'tarifs_agence';
+    protected $table = 'tarifs_agence_simple';
 
     protected $primaryKey = 'id';
     protected $keyType = 'string';

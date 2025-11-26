@@ -25,6 +25,8 @@ class Expedition extends Model
         'id',
         'agence_id',
         'client_id',
+        'livreur_enlevement_id',
+        'livreur_livraison_id',
         'reference',
 
         // Expediteur
@@ -45,7 +47,7 @@ class Expedition extends Model
 
         // Mode d'expédition
         'mode_expedition',
-        'articles',
+        'articles', // [{longueur, largeur, hauteur, volume}]
         'photos_articles',
         'poids_total',
         'volume_total',
@@ -57,14 +59,14 @@ class Expedition extends Model
         'montant_expedition',
 
         // Enlevement Domicile
-        'enlevement_domicile',
+        'is_enlevement_domicile',
         'coord_enlevement',
         'instructions_enlevement',
-        'distance_domicile_agence',
+        'distance_domicile_agence', // distance en km
         'frais_enlevement_domicile',
 
         // Livraison Domicile
-        'livraison_domicile',
+        'is_livraison_domicile',
         'coord_livraison',
         'instructions_livraison',
         'frais_livraison_domicile',
@@ -72,36 +74,39 @@ class Expedition extends Model
         // Frais supplementaires
         'frais_emballage',
         'delai_retrait',
+        'is_retard_retrait',
         'frais_retard_retrait',
 
-        'paiement_credit',
-        'statut',
+        // montant_expedition + frais_enlevement_domicile + 
+        // frais_livraison_domicile + frais_emballage + 
+        // frais_retard_retrait si is_retard_retrait & !is_livraison_domicile
+        'montant_total_expedition',
+
+        'is_paiement_credit',
+        'statut_expedition',
         'statut_paiement',
 
         // Dates
-        'date_enlevement',
-        'date_expedition',
-        'date_livraison',
-        'date_livraison_reelle',
+        'date_prevue_enlevement', // Date prevue pour l'enlevement du colis
+        'date_enlevement_reelle', // Date d'enlevement du colis par le livreur
+        'date_livraison_agence', // Date de reception par l'agence du colis enlevé 
+        'date_deplacement_entrepot', // Date du deplacement du colis de l'agence au lieu d'expédition 
+        'date_expedition_depart', // Date d'expedition du colis à l'étranger
+        'date_expedition_arrivee', // Date d'arrivée du colis de l'étranger
+        'date_reception_agence', // Date de reception par l'agence du colis expédié
+        'date_retrait_colis', // Date limite pour le retrait de colis par le client
+        'date_reception_client', // Date de reception du colis par le client
 
-        // Propriétés fusionnées de Colis
-        'code_suivi',
-
-        'valeur_declaree',
-
-        'livreur_id',
-        'livraison_express',
-        'photo_livraison',
-        'signature_destinataire',
-        'date_livraison',
+        'code_suivi_expedition',
+        'code_validation_reception',
         'commission_livreur',
         'commission_agence',
-
     ];
 
     protected $casts = [
         'mode_expedition' => ModeExpedition::class,
         'articles' => 'array',
+        'photos_articles' => 'array',
         'poids_total' => 'decimal:2',
         'volume_total' => 'decimal:2',
 
@@ -110,13 +115,16 @@ class Expedition extends Model
         'montant_prestation' => 'decimal:2',
         'montant_expedition' => 'decimal:2',
 
-        'enlevement_domicile' => 'boolean',
-        'livraison_domicile' => 'boolean',
-        'paiement_credit' => 'boolean',
+        'is_enlevement_domicile' => 'boolean',
+        'is_livraison_domicile' => 'boolean',
+        'is_paiement_credit' => 'boolean',
 
+        // Dates
+        'date_enlevement' => 'datetime',
         'date_expedition' => 'datetime',
         'date_livraison_prevue' => 'datetime',
         'date_livraison_reelle' => 'datetime',
+
         // Casts des propriétés fusionnées de Colis
         'valeur_declaree' => 'decimal:2',
         'commission_livreur' => 'decimal:2',
@@ -362,6 +370,8 @@ class Expedition extends Model
         parent::boot();
 
         static::creating(function ($expedition) {
+            $expedition->code_validation_reception = strtoupper(\Illuminate\Support\Str::random(6));
+
             if (empty($expedition->id)) {
                 $expedition->id = (string) \Illuminate\Support\Str::uuid();
             }

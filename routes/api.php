@@ -1,15 +1,15 @@
 <?php
 
-use App\Http\Controllers\Api\Agence\AgenceController;
-use App\Http\Controllers\Api\AuthController;
+
 use App\Http\Controllers\Api\TarifController;
 use App\Http\Controllers\Api\Client\ColisController;
 use App\Http\Controllers\Api\TarificationController;
 use App\Http\Controllers\Api\Livreur\MissionController;
-use App\Http\Controllers\Api\Admin\DashboardController;
-use App\Http\Controllers\Api\Agence\AgenceUserController;
 use App\Http\Controllers\Api\Agence\AgenceNotificationController;
-use App\Http\Controllers\Api\Agence\AgenceTarifController;
+use App\Http\Controllers\Api\Agence\AgenceController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Agence\AgenceUserController;
+use App\Http\Controllers\Api\Agence\AgenceTarifController; 
 use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
 use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
 use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
@@ -19,8 +19,8 @@ use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
 use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
-use App\Http\Controllers\Api\Client\ClientExpeditionController;
-use App\Http\Controllers\Api\ExpeditionArticleController;
+use App\Http\Controllers\Api\Expedition\ClientExpeditionController;
+use App\Http\Controllers\Api\Expedition\ExpeditionArticleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -118,12 +118,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/delete-user/{user}', [AgenceUserController::class, 'deleteUser']);
 
         // Gestion des tarifs simple de l'agence
-        Route::get('/list-tarifs', [AgenceTarifController::class, 'list']);
+        Route::get('/list-tarifs-simple', [AgenceTarifController::class, 'list']);
         Route::post('/add-tarif-simple', [AgenceTarifController::class, 'add']);
         Route::put('/edit-tarif-simple/{tarif}', [AgenceTarifController::class, 'edit']);
-        Route::get('/show-tarif/{tarif}', [AgenceTarifController::class, 'show']);
-        Route::delete('/delete-tarif/{tarif}', [AgenceTarifController::class, 'delete']);
-        Route::put('/status-tarif/{tarif}', [AgenceTarifController::class, 'toggleStatus']);
+        Route::get('/show-tarif-simple/{tarif}', [AgenceTarifController::class, 'show']);
+        Route::delete('/delete-tarif-simple/{tarif}', [AgenceTarifController::class, 'delete']);
+        Route::put('/status-tarif-simple/{tarif}', [AgenceTarifController::class, 'toggleStatus']);
 
         // Gestion des tarifs groupage de l'agence
         Route::get('/list-tarifs-groupage', [AgenceTarifGroupageController::class, 'list']);

@@ -17,7 +17,7 @@ class TarifGroupageController extends Controller
     {
         try {
             $user = $request->user();
-            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
+            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN, UserType::AGENCE])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
@@ -26,8 +26,13 @@ class TarifGroupageController extends Controller
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->category_id);
             }
+            
             if ($user->type === UserType::BACKOFFICE) {
                 $query->where('backoffice_id', $user->backoffice_id);
+            }
+
+            if ($user->type === UserType::AGENCE) {
+                $query->where('pays', $user->agence->pays);
             }
 
             $tarifs = $query->get();

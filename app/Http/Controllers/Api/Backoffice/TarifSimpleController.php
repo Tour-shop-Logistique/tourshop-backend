@@ -11,6 +11,7 @@ use App\Models\TarifAgence;
 use App\Enums\UserType;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
+use App\Models\TarifAgenceSimple;
 use Exception;
 
 class TarifSimpleController extends Controller
@@ -230,7 +231,7 @@ class TarifSimpleController extends Controller
         }
 
         // Récupérer tous les tarifs d'agence liés à ce tarif simple
-        $tarifsAgence = TarifAgence::where('tarif_simple_id', $tarif->id)->get();
+        $tarifsAgence = TarifAgenceSimple::where('tarif_simple_id', $tarif->id)->get();
 
         foreach ($tarifsAgence as $tarifAgence) {
             $prixZonesAgence = $tarifAgence->prix_zones ?? [];

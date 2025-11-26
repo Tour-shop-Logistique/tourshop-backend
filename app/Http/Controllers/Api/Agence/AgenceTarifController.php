@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use App\Models\Agence;
-use App\Models\TarifAgence;
+use App\Models\TarifAgenceSimple;
 use App\Models\TarifSimple;
 use App\Enums\UserType;
 use App\Enums\ModeExpedition;
@@ -27,7 +27,7 @@ class AgenceTarifController extends Controller
             //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             // }
 
-            $query = TarifAgence::query();
+            $query = TarifAgenceSimple::query();
 
             if ($user->type === UserType::AGENCE) {
                 $agence = Agence::where('user_id', $user->id)->first();
@@ -90,7 +90,7 @@ class AgenceTarifController extends Controller
                 return response()->json(['success' => false, 'message' => 'Zones non trouvées dans le tarif de simple: ' . implode(', ', $zonesMissing)], 422);
             }
 
-            $tarif = TarifAgence::create([
+            $tarif = TarifAgenceSimple::create([
                 'agence_id' => $agence->id,
                 'tarif_simple_id' => $tarifSimple->id,
                 'prix_zones' => $request->prix_zones,
@@ -116,7 +116,7 @@ class AgenceTarifController extends Controller
     /**
      * Mettre à jour un tarif.
      */
-    public function edit(Request $request, TarifAgence $tarif)
+    public function edit(Request $request, TarifAgenceSimple $tarif)
     {
         try {
             $user = $request->user();
@@ -173,7 +173,7 @@ class AgenceTarifController extends Controller
     /**
      * Afficher un tarif spécifique.
      */
-    public function show(Request $request, TarifAgence $tarif)
+    public function show(Request $request, TarifAgenceSimple $tarif)
     {
         try {
             $user = $request->user();
@@ -204,7 +204,7 @@ class AgenceTarifController extends Controller
     /**
      * Supprimer un tarif.
      */
-    public function delete(Request $request, TarifAgence $tarif)
+    public function delete(Request $request, TarifAgenceSimple $tarif)
     {
         try {
             $user = $request->user();
@@ -245,7 +245,7 @@ class AgenceTarifController extends Controller
     /**
      * Activer/désactiver un tarif.
      */
-    public function toggleStatus(Request $request, TarifAgence $tarif)
+    public function toggleStatus(Request $request, TarifAgenceSimple $tarif)
     {
         try {
             $user = $request->user();
