@@ -65,17 +65,17 @@ class Agence extends Model
         return $this->hasMany(User::class, "agence_id")->notDeleted();
     }
 
-    // Garder seulement celle-ci car plus explicite
-    public function colisEnleves()
-    {
-        // Les colis déposés/enlevés par cette agence
-        return $this->hasMany(Colis::class, 'agence_id');
-    }
 
-    public function tarifs()
+    public function tarifsSimple()
     {
         // Une agence peut avoir plusieurs tarifs
-        return $this->hasMany(TarifAgence::class);
+        return $this->hasMany(TarifAgenceSimple::class);
+    }
+
+    public function tarifsGroupage()
+    {
+        // Une agence peut avoir plusieurs tarifs
+        return $this->hasMany(TarifAgenceGroupage::class);
     }
 
     public function scopeDansZone($query, $latitude, $longitude)

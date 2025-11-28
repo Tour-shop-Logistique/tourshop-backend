@@ -110,7 +110,7 @@ class ClientExpeditionController extends Controller
                 'zone_destination_id' => $validated['zone_destination_id'],
                 'mode_expedition' => $validated['mode_expedition'],
                 'type_colis' => $validated['type_colis'] ?? null,
-                'statut' => Expedition::STATUT_EN_ATTENTE, // En attente de validation agence
+                'statut' => \App\Enums\ExpeditionStatus::EN_ATTENTE, // En attente de validation agence
                 'description' => $validated['description'] ?? null,
                 'date_expedition' => $validated['date_expedition_souhaitee'] ?? null
             ]);
@@ -189,7 +189,7 @@ class ClientExpeditionController extends Controller
             }
 
             $expedition = Expedition::pourClient($client->id)
-                ->whereIn('statut', [Expedition::STATUT_EN_ATTENTE, Expedition::STATUT_ACCEPTED])
+                ->whereIn('statut', [\App\Enums\ExpeditionStatus::EN_ATTENTE, \App\Enums\ExpeditionStatus::ACCEPTED])
                 ->find($id);
 
             if (!$expedition) {
@@ -197,7 +197,7 @@ class ClientExpeditionController extends Controller
             }
 
             $expedition->update([
-                'statut' => Expedition::STATUT_CANCELLED,
+                'statut' => \App\Enums\ExpeditionStatus::CANCELLED,
                 'description' => ($expedition->description ?? '') . ' | Annulation client: ' . $request->motif_annulation
             ]);
 

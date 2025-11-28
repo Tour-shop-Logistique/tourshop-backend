@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Models\User;
-use App\Models\Article;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Enums\ModeExpedition;
+use App\Enums\ExpeditionStatus;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Expedition extends Model
@@ -26,6 +27,7 @@ class Expedition extends Model
         'agence_id',
         'client_id',
         'livreur_enlevement_id',
+        'livreur_deplacement_id',
         'livreur_livraison_id',
         'reference',
 
@@ -40,6 +42,7 @@ class Expedition extends Model
         // Destinataire
         'zone_destination_id',
         'pays_destination',
+        'adresse_postale_destination',
         'destinataire_id',
         'destinataire_nom',
         'destinataire_telephone',
@@ -47,60 +50,63 @@ class Expedition extends Model
 
         // Mode d'expédition
         'mode_expedition',
-        'articles', // [{longueur, largeur, hauteur, volume}]
-        'photos_articles',
+        'articles', // [{description, photo, longueur, largeur, hauteur, volume, poids, quantite, category_id, produit_id}]
         'poids_total',
         'volume_total',
 
         // Montant
-        'montant_base',
+        'montant_base', // pour backoffice
         'pourcentage_prestation',
-        'montant_prestation',
+        'montant_prestation', // pour agence
         'montant_expedition',
+
+        // Frais
+        'frais_enlevement_domicile', // pour livreur et agence
+        'frais_livraison_domicile', // pour livreur et agence
+        'frais_emballage', // pour agence
+        'frais_enlevement_agence', // pour backoffice
+        'frais_retard_retrait', // pour agence et backoffice
 
         // Enlevement Domicile
         'is_enlevement_domicile',
         'coord_enlevement',
         'instructions_enlevement',
         'distance_domicile_agence', // distance en km
-        'frais_enlevement_domicile',
 
         // Livraison Domicile
         'is_livraison_domicile',
         'coord_livraison',
         'instructions_livraison',
-        'frais_livraison_domicile',
 
-        // Frais supplementaires
-        'frais_emballage',
         'delai_retrait',
         'is_retard_retrait',
-        'frais_retard_retrait',
-
-        // montant_expedition + frais_enlevement_domicile + 
-        // frais_livraison_domicile + frais_emballage + 
-        // frais_retard_retrait si is_retard_retrait & !is_livraison_domicile
-        'montant_total_expedition',
-
         'is_paiement_credit',
         'statut_expedition',
         'statut_paiement',
 
-        // Dates
+        // Dates [{}]
         'date_prevue_enlevement', // Date prevue pour l'enlevement du colis
-        'date_enlevement_reelle', // Date d'enlevement du colis par le livreur
+        'date_enlevement_client', // Date d'enlevement du colis par le livreur
         'date_livraison_agence', // Date de reception par l'agence du colis enlevé 
         'date_deplacement_entrepot', // Date du deplacement du colis de l'agence au lieu d'expédition 
         'date_expedition_depart', // Date d'expedition du colis à l'étranger
         'date_expedition_arrivee', // Date d'arrivée du colis de l'étranger
         'date_reception_agence', // Date de reception par l'agence du colis expédié
-        'date_retrait_colis', // Date limite pour le retrait de colis par le client
+        'date_limite_retrait', // Date limite pour le retrait de colis par le client
         'date_reception_client', // Date de reception du colis par le client
+        'date_annulation', // Date d'annulation de l'expedition 
 
+        'motif_annulation',
         'code_suivi_expedition',
         'code_validation_reception',
-        'commission_livreur',
-        'commission_agence',
+
+        // Commissions [{}]
+        'commission_livreur_enlevement', // 85% sur les frais d'enlevement à domicile
+        'commission_agence_enlevement', // 15% sur les frais d'enlevement à domicile
+        'commission_livreur_livraison', // 90% sur les frais de livraison à domicile
+        'commission_agence_livraison', // 10% sur les frais de livraison à domicile
+        'commission_agence_retard', // 40% sur les frais de retard de retrait
+        'commission_tourshop_retard', // 60% sur les frais de retard de retrait
     ];
 
     protected $casts = [
@@ -127,21 +133,16 @@ class Expedition extends Model
 
         // Casts des propriétés fusionnées de Colis
         'valeur_declaree' => 'decimal:2',
-        'commission_livreur' => 'decimal:2',
+        'commission_livreur_enlevement' => 'decimal:2',
+        'commission_livreur_livraison' => 'decimal:2',
         'commission_agence' => 'decimal:2',
 
         'livraison_express' => 'boolean',
-        'date_livraison' => 'datetime'
-    ];
+        'date_livraison' => 'datetime',
 
-    // Statuts possibles
-    const STATUT_EN_ATTENTE = 'en_attente';
-    const STATUT_ACCEPTED = 'accepted';
-    const STATUT_REFUSED = 'refused';
-    const STATUT_IN_PROGRESS = 'in_progress';
-    const STATUT_SHIPPED = 'shipped';
-    const STATUT_DELIVERED = 'delivered';
-    const STATUT_CANCELLED = 'cancelled';
+        'statut_expedition' => ExpeditionStatus::class,
+        'statut_paiement' => ExpeditionStatus::class,
+    ];
 
     // Statuts de paiement
     const PAIEMENT_EN_ATTENTE = 'en_attente';
@@ -149,123 +150,110 @@ class Expedition extends Model
     const PAIEMENT_PARTIEL = 'partiel';
     const PAIEMENT_REMBOURSE = 'rembourse';
 
-    public function client(): BelongsTo
+    public function produits()
     {
-        return $this->belongsTo(User::class, 'client_id');
+        return $this->hasMany(ExpeditionArticle::class);
     }
 
     public function agence(): BelongsTo
     {
-        return $this->belongsTo(Agence::class, 'agence_id');
+        return $this->belongsTo(Agence::class);
     }
 
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'client_id', 'user_id');
+    }
+
+    public function expediteur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'expediteur_id', 'user_id');
+    }
     public function destinataire(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'destinataire_id');
+        return $this->belongsTo(User::class, 'destinataire_id', 'user_id');
     }
 
-    public function livreur(): BelongsTo
+    public function livreurEnlevement(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'livreur_id');
+        return $this->belongsTo(User::class, 'livreur_enlevement_id', 'user_id');
+    }
+
+    public function livreurDeplacement(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'livreur_deplacement_id', 'user_id');
+    }
+
+    public function livreurLivraison(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'livreur_livraison_id', 'user_id');
     }
 
     public function zoneDepart(): BelongsTo
     {
-        return $this->belongsTo(Zone::class, 'zone_depart_id');
+        return $this->belongsTo(Zone::class, 'zone_depart_id', 'zone_id');
     }
 
     public function zoneDestination(): BelongsTo
     {
-        return $this->belongsTo(Zone::class, 'zone_destination_id');
+        return $this->belongsTo(Zone::class, 'zone_destination_id', 'zone_id');
     }
 
-    public function articles(): HasMany
-    {
-        return $this->hasMany(ExpeditionArticle::class, 'expedition_id');
-    }
 
-    // Méthodes de calcul des totaux à partir des articles
-    public function getPoidsTotalAttribute(): float
+    // Méthodes de calcul des totaux à partir du tableau JSON articles
+    public function getPoidsTotal(): float
     {
-        return $this->articles->sum('poids_total');
-    }
-
-    public function getVolumeTotalAttribute(): float
-    {
-        return $this->articles->sum('volume_total');
-    }
-
-    public function getLongueurTotaleAttribute(): float
-    {
-        return $this->articles->max('longueur') ?? 0;
-    }
-
-    public function getLargeurTotaleAttribute(): float
-    {
-        return $this->articles->max('largeur') ?? 0;
-    }
-
-    public function getHauteurTotaleAttribute(): float
-    {
-        return $this->articles->max('hauteur') ?? 0;
-    }
-
-    public function getValeurTotaleDeclareeAttribute(): float
-    {
-        return $this->articles->sum('valeur_declaree');
-    }
-
-    // Méthode pour recalculer les totaux depuis les articles
-    public function recalculerTotaux(): void
-    {
-        $this->poids = $this->poids_total;
-        $this->volume = $this->volume_total;
-
-        // Pour le mode simple, on utilise les dimensions maximales
-        if ($this->mode_expedition === 'simple') {
-            $this->longueur = $this->longueur_totale;
-            $this->largeur = $this->largeur_totale;
-            $this->hauteur = $this->hauteur_totale;
+        $articles = $this->attributes['articles'] ?? $this->articles ?? [];
+        if (is_string($articles)) {
+            $articles = json_decode($articles, true) ?? [];
         }
+        return (float) array_sum(array_column($articles, 'poids'));
+    }
 
-        $this->save();
+    public function getVolumeTotal(): float
+    {
+        $articles = $this->attributes['articles'] ?? $this->articles ?? [];
+        if (is_string($articles)) {
+            $articles = json_decode($articles, true) ?? [];
+        }
+        return (float) array_sum(array_column($articles, 'volume'));
     }
 
 
     // Scopes pour filtrer par statut
     public function scopeEnAttente($query)
     {
-        return $query->where('statut', self::STATUT_EN_ATTENTE);
+        return $query->where('statut_expedition', ExpeditionStatus::EN_ATTENTE);
     }
 
     public function scopeAccepted($query)
     {
-        return $query->where('statut', self::STATUT_ACCEPTED);
+        return $query->where('statut_expedition', ExpeditionStatus::ACCEPTED);
     }
 
     public function scopeRefused($query)
     {
-        return $query->where('statut', self::STATUT_REFUSED);
+        return $query->where('statut_expedition', ExpeditionStatus::REFUSED);
     }
 
     public function scopeInProgress($query)
     {
-        return $query->where('statut', self::STATUT_IN_PROGRESS);
+        return $query->where('statut_expedition', ExpeditionStatus::IN_PROGRESS);
     }
 
     public function scopeShipped($query)
     {
-        return $query->where('statut', self::STATUT_SHIPPED);
+        return $query->where('statut_expedition', ExpeditionStatus::SHIPPED);
     }
 
     public function scopeDelivered($query)
     {
-        return $query->where('statut', self::STATUT_DELIVERED);
+        return $query->where('statut_expedition', ExpeditionStatus::DELIVERED);
     }
 
     public function scopeCancelled($query)
     {
-        return $query->where('statut', self::STATUT_CANCELLED);
+        return $query->where('statut_expedition', ExpeditionStatus::CANCELLED);
     }
 
     // Scope pour les expéditions d'une agence
@@ -278,6 +266,12 @@ class Expedition extends Model
     public function scopePourClient($query, $clientId)
     {
         return $query->where('client_id', $clientId);
+    }
+
+    // Scope pour les expéditions d'un destinataire
+    public function scopePourDestinataire($query, $destinataireId)
+    {
+        return $query->where('destinataire_id', $destinataireId);
     }
 
     // Méthode pour générer une référence unique
@@ -295,74 +289,40 @@ class Expedition extends Model
         return 'TS' . date('Ymd') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
     }
 
-    // Méthodes utilitaires pour gérer les destinataires (héritées de Colis)
-    public function isDestinataireUser(): bool
-    {
-        return !is_null($this->destinataire_id);
-    }
-
-    // Accesseur pour récupérer automatiquement le nom du destinataire
-    public function getDestinataireNomAttribute($value): string
-    {
-        if ($this->isDestinataireUser()) {
-            return $this->destinataire->name ?? 'Utilisateur inconnu';
-        }
-        return $value ?? 'Destinataire inconnu';
-    }
-
-    // Accesseur pour récupérer automatiquement le téléphone du destinataire
-    public function getDestinataireTelephoneAttribute($value): string
-    {
-        if ($this->isDestinataireUser()) {
-            return $this->destinataire->telephone ?? 'Téléphone non disponible';
-        }
-        return $value ?? 'Téléphone non disponible';
-    }
-
-    // Méthode pour calculer le volume
-    public function calculerVolume(): void
-    {
-        if ($this->longueur && $this->largeur && $this->hauteur) {
-            // Calculer le volume en m³ et s'assurer que c'est un nombre décimal
-            $volume = (float) ($this->longueur * $this->largeur * $this->hauteur) / 1000000.0;
-            $this->volume = round($volume, 6);
-        }
-    }
-
     // Méthode pour vérifier si l'expédition peut être acceptée
     public function peutEtreAcceptee(): bool
     {
-        return in_array($this->statut, [self::STATUT_EN_ATTENTE]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::EN_ATTENTE]);
     }
 
     // Méthode pour vérifier si l'expédition peut être refusée
     public function peutEtreRefusee(): bool
     {
-        return in_array($this->statut, [self::STATUT_EN_ATTENTE]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::EN_ATTENTE]);
     }
 
     // Méthode pour vérifier si l'expédition peut être mise en cours
     public function peutEtreEnCours(): bool
     {
-        return in_array($this->statut, [self::STATUT_ACCEPTED]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::ACCEPTED]);
     }
 
     // Méthode pour vérifier si l'expédition peut être expédiée
     public function peutEtreExpediee(): bool
     {
-        return in_array($this->statut, [self::STATUT_IN_PROGRESS]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::IN_PROGRESS]);
     }
 
     // Méthode pour vérifier si l'expédition peut être livrée
     public function peutEtreLivree(): bool
     {
-        return in_array($this->statut, [self::STATUT_SHIPPED]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::SHIPPED]);
     }
 
     // Méthode pour vérifier si l'expédition peut être annulée
     public function peutEtreAnnulee(): bool
     {
-        return in_array($this->statut, [self::STATUT_EN_ATTENTE, self::STATUT_ACCEPTED]);
+        return in_array($this->statut_expedition, [ExpeditionStatus::EN_ATTENTE, ExpeditionStatus::ACCEPTED]);
     }
 
     protected static function boot()
@@ -370,32 +330,44 @@ class Expedition extends Model
         parent::boot();
 
         static::creating(function ($expedition) {
-            $expedition->code_validation_reception = strtoupper(\Illuminate\Support\Str::random(6));
 
-            if (empty($expedition->id)) {
-                $expedition->id = (string) \Illuminate\Support\Str::uuid();
-            }
+            $expedition->{$expedition->getKeyName()} = (string) Str::uuid();
+            $expedition->code_validation_reception = strtoupper(Str::random(6));
+
             if (empty($expedition->reference)) {
                 $expedition->reference = self::genererReference();
             }
-            if (empty($expedition->code_suivi)) {
-                $expedition->code_suivi = self::genererCodeSuivi();
+
+            // if (empty($expedition->code_suivi)) {
+            //     $expedition->code_suivi = self::genererCodeSuivi();
+            // }
+
+            if (empty($expedition->statut_expedition)) {
+                $expedition->statut_expedition = ExpeditionStatus::EN_ATTENTE;
             }
-            if (empty($expedition->statut)) {
-                $expedition->statut = self::STATUT_EN_ATTENTE;
-            }
+
             if (empty($expedition->statut_paiement)) {
                 $expedition->statut_paiement = self::PAIEMENT_EN_ATTENTE;
             }
-            // Calculer le volume automatiquement si les dimensions sont fournies
-            $expedition->calculerVolume();
         });
 
-        static::updating(function ($expedition) {
-            // Recalculer le volume si les dimensions changent
-            if ($expedition->isDirty(['longueur', 'largeur', 'hauteur'])) {
-                $expedition->calculerVolume();
+        static::saving(function ($expedition) {
+
+            if ($expedition->articles) {
+                $articles = $expedition->articles;
+                foreach ($articles as &$article) {
+                    if (isset($article['longueur']) && isset($article['largeur']) && isset($article['hauteur'])) {
+                        $volume = (float) ($article['longueur'] * $article['largeur'] * $article['hauteur']);
+                        $article['volume'] = round($volume, 2, PHP_ROUND_HALF_UP);
+                    }
+                }
+                $expedition->articles = $articles;
+                $expedition->poids_total = self::getPoidsTotal();
+                $expedition->volume_total = self::getVolumeTotal();
+
             }
         });
+
+
     }
 }

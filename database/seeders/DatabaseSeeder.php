@@ -14,5 +14,6 @@ class DatabaseSeeder extends Seeder
     {
         // Appelle ton AgenceSeeder pour créer les données de test
         $this->call(AgenceSeeder::class);
+        $this->call(CommissionSeeder::class);
     }
 }

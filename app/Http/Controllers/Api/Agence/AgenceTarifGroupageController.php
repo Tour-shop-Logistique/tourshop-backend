@@ -38,7 +38,7 @@ class AgenceTarifGroupageController extends Controller
                 $query->where('category_id', $request->category_id);
             }
 
-            $tarifs = $query->get();
+            $tarifs = $query->with('category')->get();
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
             Log::error('Erreur listing tarifs agence groupage : ' . $e->getMessage());

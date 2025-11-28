@@ -114,21 +114,14 @@ class TarifAgenceSimple extends Model
     /**
      * Scope pour rechercher par critères d'agence
      */
-    public function scopePourCriteres($query, $agenceId, $zoneDestination, $modeExpedition, $indiceTrancheArrondi, $typeColis = null)
+    public function scopePourCriteres($query, $agenceId, $zoneDestination, $modeExpedition, $indiceTrancheArrondi)
     {
         return $query->where('agence_id', $agenceId)
             ->where('actif', true)
-            ->whereHas('tarifSimple', function ($subQuery) use ($zoneDestination, $modeExpedition, $indiceTrancheArrondi, $typeColis) {
+            ->whereHas('tarifSimple', function ($subQuery) use ($zoneDestination, $modeExpedition, $indiceTrancheArrondi) {
                 $subQuery->where('indice', $indiceTrancheArrondi)
                     ->where('mode_expedition', $modeExpedition)
                     ->where('actif', true);
-
-                // Le type de colis n'influe que sur le mode groupage
-                if ($modeExpedition === 'groupage' && $typeColis) {
-                    $subQuery->where('type_colis', $typeColis);
-                } elseif ($modeExpedition === 'simple') {
-                    $subQuery->whereNull('type_colis');
-                }
 
                 // Vérifier que le tarif simple contient la zone demandée
                 $subQuery->whereJsonContains('prix_zones', function ($zone) use ($zoneDestination) {

@@ -70,22 +70,17 @@ class TarifSimple extends Model
      */
     public function tarifsAgence(): HasMany
     {
-        return $this->hasMany(TarifAgence::class, 'tarif_simple_id');
+        return $this->hasMany(TarifAgenceSimple::class, 'tarif_simple_id');
     }
 
     /**
      * Scope pour rechercher par critères
      */
-    public function scopePourCriteres($query, $zoneDestination, $modeExpedition, $indiceTrancheArrondi, $typeColis = null)
+    public function scopePourCriteres($query, $zoneDestination, $modeExpedition, $indiceTrancheArrondi)
     {
         $query->where('indice', $indiceTrancheArrondi)
             ->where('mode_expedition', $modeExpedition)
             ->where('actif', true);
-
-        // Pour le mode groupage, le type_colis doit correspondre
-        if ($modeExpedition === ModeExpedition::SIMPLE->value) {
-            $query->whereNull('type_colis');
-        }
 
         // Filtrer par zone dans le JSON prix_zones
         $query->whereJsonContains('prix_zones', function ($zone) use ($zoneDestination) {

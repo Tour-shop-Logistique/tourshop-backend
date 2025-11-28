@@ -8,10 +8,17 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use App\Models\Zone;
 use App\Enums\UserType;
+use App\Services\ZoneService;
 use Exception;
 
 class ZoneController extends Controller
 {
+    protected ZoneService $zoneService;
+
+    public function __construct(ZoneService $zoneService)
+    {
+        $this->zoneService = $zoneService;
+    }
     /**
      * Lister les zones (avec filtres optionnels)
      */
@@ -57,6 +64,9 @@ class ZoneController extends Controller
                 'pays' => $request->pays,
             ]);
 
+            // Vider le cache des zones
+            $this->zoneService->clearZoneCache($zone->id);
+
             return response()->json(['success' => true, 'message' => 'Zone créée avec succès.', 'zone' => $zone], 201);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
@@ -96,7 +106,11 @@ class ZoneController extends Controller
                 'pays.*' => ['string', 'max:120'],
             ]);
 
-            $zone->update($request->only(['nom', 'pays', 'actif']));
+            $zone->update($request->only(['nom', 'pays']));
+
+            // Vider le cache de cette zone
+            $this->zoneService->clearZoneCache($zone->id);
+
             return response()->json(['success' => true, 'message' => 'Zone mise à jour.', 'zone' => $zone]);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
@@ -116,6 +130,9 @@ class ZoneController extends Controller
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
+
+            // Vider le cache avant suppression
+            $this->zoneService->clearZoneCache($zone->id);
 
             $zone->delete();
             return response()->json(['success' => true, 'message' => 'Zone supprimée avec succès.']);
@@ -138,6 +155,10 @@ class ZoneController extends Controller
 
             $zone->actif = !$zone->actif;
             $zone->save();
+
+            // Vider le cache de cette zone
+            $this->zoneService->clearZoneCache($zone->id);
+
             return response()->json(['success' => true, 'message' => $zone->actif ? 'Zone activée.' : 'Zone désactivée.', 'zone' => $zone]);
         } catch (Exception $e) {
             Log::error('Erreur toggle statut zone : ' . $e->getMessage());

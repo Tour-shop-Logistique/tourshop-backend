@@ -41,7 +41,6 @@ POST /api/client/expeditions/initiate
 - `zone_depart_id`: Zone de départ
 - `zone_destination_id`: Zone de destination  
 - `mode_expedition`: "simple" ou "groupage"
-- `type_colis`: Requis si mode="groupage"
 
 **Processus:**
 1. Validation des données
@@ -53,7 +52,7 @@ POST /api/client/expeditions/initiate
 **Champs générés automatiquement:**
 - `id`: UUID unique
 - `reference`: Référence unique (TS-2025-XXXXX)
-- `code_suivi`: Code suivi (8 caractères)
+- `code_suivi_expedition`: Code suivi (8 caractères)
 - `code_validation_reception`: Code validation (6 caractères)
 - `statut_expedition`: EN_ATTENTE
 - `statut_paiement`: EN_ATTENTE

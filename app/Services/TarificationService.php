@@ -3,15 +3,22 @@
 namespace App\Services;
 
 use App\Models\TarifSimple;
-use App\Models\TarifAgence;
+use App\Models\TarifAgenceSimple;
 use App\Models\TarifAgenceGroupage;
 use App\Models\Zone;
 use App\Models\CategoryProduct;
 use App\Enums\ModeExpedition;
 use App\Enums\TypeColis;
+use App\Services\ZoneService;
 
 class TarificationService
 {
+    protected ZoneService $zoneService;
+
+    public function __construct(ZoneService $zoneService)
+    {
+        $this->zoneService = $zoneService;
+    }
     /**
      * Calcule le volume en cm³ puis divise par le facteur (défaut 5000)
      */
@@ -57,7 +64,6 @@ class TarificationService
      */
     public function trouverTarifPourColis(
         string $zoneDestination,
-        ?string $typeColis,
         string $modeExpedition,
         float $poids,
         float $longueur = 0,
@@ -100,12 +106,11 @@ class TarificationService
                 }
             }
 
-            // 1.b) Sinon, tenter le tarif d'agence "simple" existant basé sur un tarif de base correspondant
-            $tarifAgence = TarifAgence::with('tarifBase')
-                ->pourCriteres($agenceId, $zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)
+            // 1.b) Sinon, tenter le tarif d'agence SIMPLE existant basé sur un tarif de base correspondant
+            $tarifAgence = TarifAgenceSimple::pourCriteres($agenceId, $zoneDestination, $modeExpedition, $indiceArrondi)
                 ->first();
 
-            if ($tarifAgence && $tarifAgence->tarifBase) {
+            if ($tarifAgence) {
                 $prixZoneAgence = $tarifAgence->getPrixPourZone($zoneDestination);
                 if ($prixZoneAgence) {
                     return [
@@ -124,7 +129,7 @@ class TarificationService
         }
 
         // 2) Sinon on cherche un tarif de base
-        $tarifBase = TarifSimple::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi, $typeColis)->first();
+        /*$tarifBase = TarifSimple::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi)->first();
         if ($tarifBase) {
             $prixZone = $tarifBase->getPrixPourZone($zoneDestination);
             if ($prixZone) {
@@ -139,7 +144,7 @@ class TarificationService
                     'montant_expedition' => round((float) $prixZone['montant_expedition_base'], 2, PHP_ROUND_HALF_UP),
                 ];
             }
-        }
+        }*/
 
         return null;
     }
@@ -149,8 +154,8 @@ class TarificationService
      */
     public function simulerTarification(array $donnees): array
     {
-        // Trouver la zone de destination à partir du pays d'arrivée
-        $zoneDestination = Zone::whereJsonContains('pays', $donnees['pays_arrivee'])->first();
+        // Trouver la zone de destination à partir du pays d'arrivée (avec cache)
+        $zoneDestination = $this->zoneService->getZoneByCountry($donnees['pays_arrivee']);
         if (!$zoneDestination) {
             throw new \Exception('Zone non trouvée pour un ou plusieurs pays.');
         }

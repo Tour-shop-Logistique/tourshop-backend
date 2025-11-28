@@ -34,11 +34,11 @@ class ExpeditionArticleController extends Controller
             }
 
             $expedition = Expedition::where('id', $expeditionId)
-                ->where(function($query) use ($user) {
+                ->where(function ($query) use ($user) {
                     if ($user->type === 'client') {
                         $query->where('client_id', $user->id);
                     } elseif ($user->type === 'agence') {
-                        $query->whereHas('agence', function($q) use ($user) {
+                        $query->whereHas('agence', function ($q) use ($user) {
                             $q->where('user_id', $user->id);
                         });
                     }
@@ -75,11 +75,11 @@ class ExpeditionArticleController extends Controller
             }
 
             $expedition = Expedition::where('id', $expeditionId)
-                ->where(function($query) use ($user) {
+                ->where(function ($query) use ($user) {
                     if ($user->type === 'client') {
                         $query->where('client_id', $user->id);
                     } elseif ($user->type === 'agence') {
-                        $query->whereHas('agence', function($q) use ($user) {
+                        $query->whereHas('agence', function ($q) use ($user) {
                             $q->where('user_id', $user->id);
                         });
                     }
@@ -91,7 +91,7 @@ class ExpeditionArticleController extends Controller
             }
 
             // Vérifier que l'expédition peut encore être modifiée
-            if (!in_array($expedition->statut, [Expedition::STATUT_EN_ATTENTE, Expedition::STATUT_ACCEPTED])) {
+            if (!in_array($expedition->statut, [\App\Enums\ExpeditionStatus::EN_ATTENTE, \App\Enums\ExpeditionStatus::ACCEPTED])) {
                 return response()->json(['message' => 'Cette expédition ne peut plus être modifiée'], 422);
             }
 
@@ -164,11 +164,11 @@ class ExpeditionArticleController extends Controller
             }
 
             $expedition = Expedition::where('id', $expeditionId)
-                ->where(function($query) use ($user) {
+                ->where(function ($query) use ($user) {
                     if ($user->type === 'client') {
                         $query->where('client_id', $user->id);
                     } elseif ($user->type === 'agence') {
-                        $query->whereHas('agence', function($q) use ($user) {
+                        $query->whereHas('agence', function ($q) use ($user) {
                             $q->where('user_id', $user->id);
                         });
                     }
@@ -180,7 +180,7 @@ class ExpeditionArticleController extends Controller
             }
 
             // Vérifier que l'expédition peut encore être modifiée
-            if (!in_array($expedition->statut, [Expedition::STATUT_EN_ATTENTE, Expedition::STATUT_ACCEPTED])) {
+            if (!in_array($expedition->statut, [\App\Enums\ExpeditionStatus::EN_ATTENTE, \App\Enums\ExpeditionStatus::ACCEPTED])) {
                 return response()->json(['message' => 'Cette expédition ne peut plus être modifiée'], 422);
             }
 
@@ -246,11 +246,11 @@ class ExpeditionArticleController extends Controller
             }
 
             $expedition = Expedition::where('id', $expeditionId)
-                ->where(function($query) use ($user) {
+                ->where(function ($query) use ($user) {
                     if ($user->type === 'client') {
                         $query->where('client_id', $user->id);
                     } elseif ($user->type === 'agence') {
-                        $query->whereHas('agence', function($q) use ($user) {
+                        $query->whereHas('agence', function ($q) use ($user) {
                             $q->where('user_id', $user->id);
                         });
                     }
@@ -262,7 +262,7 @@ class ExpeditionArticleController extends Controller
             }
 
             // Vérifier que l'expédition peut encore être modifiée
-            if (!in_array($expedition->statut, [Expedition::STATUT_EN_ATTENTE, Expedition::STATUT_ACCEPTED])) {
+            if (!in_array($expedition->statut, [\App\Enums\ExpeditionStatus::EN_ATTENTE, \App\Enums\ExpeditionStatus::ACCEPTED])) {
                 return response()->json(['message' => 'Cette expédition ne peut plus être modifiée'], 422);
             }
 

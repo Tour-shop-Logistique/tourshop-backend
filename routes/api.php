@@ -6,10 +6,11 @@ use App\Http\Controllers\Api\Client\ColisController;
 use App\Http\Controllers\Api\TarificationController;
 use App\Http\Controllers\Api\Livreur\MissionController;
 use App\Http\Controllers\Api\Agence\AgenceNotificationController;
+use App\Http\Controllers\Api\Backoffice\CommissionSettingController;
 use App\Http\Controllers\Api\Agence\AgenceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Agence\AgenceUserController;
-use App\Http\Controllers\Api\Agence\AgenceTarifController; 
+use App\Http\Controllers\Api\Agence\AgenceTarifController;
 use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
 use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
 use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
@@ -69,15 +70,21 @@ Route::middleware('auth:sanctum')->group(function () {
     });*/
 
     // Routes livreurs
-    /*Route::prefix('livreur')->group(function () {
-        Route::get('/dashboard', [MissionController::class, 'dashboard']);
-        Route::get('/missions-disponibles', [MissionController::class, 'missionsDisponibles']);
-        Route::post('/missions/{colis}/accepter', [MissionController::class, 'accepterMission']);
-        Route::get('/mes-missions', [MissionController::class, 'mesMissions']);
-        Route::post('/missions/{colis}/confirmer-enlevement', [MissionController::class, 'confirmerEnlevement']);
-        Route::post('/missions/{colis}/confirmer-livraison', [MissionController::class, 'confirmerLivraison']);
-        Route::post('/disponibilite', [MissionController::class, 'changerDisponibilite']);
-    });*/
+    Route::prefix('livreur')->group(function () {
+        Route::get('/missions', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'index']);
+        Route::post('/enlevement/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startEnlevement']);
+        Route::post('/enlevement/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmEnlevement']);
+        Route::post('/reception-agence/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmReceptionAgence']);
+        Route::post('/livraison/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startLivraison']);
+        Route::post('/livraison/{id}/validate', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'validateLivraison']);
+    });
+
+    // Routes entrepôt
+    Route::prefix('entrepot')->group(function () {
+        Route::post('/expeditions/{id}/receive', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'receive']);
+        Route::post('/expeditions/{id}/ship', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'ship']);
+        Route::post('/expeditions/{id}/confirm-arrival', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'confirmArrival']);
+    });
 
     // Tableau de bord et statistiques
     /*Route::get('/dashboard', [AgenceController::class, 'dashboard']);  // Tableau de bord avec statistiques
@@ -146,6 +153,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/expeditions/{expeditionId}/articles', [ExpeditionArticleController::class, 'add']);
         Route::put('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'edit']);
         Route::delete('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'delete']);
+
+        // Workflow complet Agence
+        Route::put('/expeditions/{id}/confirm-reception', [AgenceExpeditionController::class, 'confirmReception']);
+        Route::post('/expeditions/{id}/ship-to-warehouse', [AgenceExpeditionController::class, 'shipToWarehouse']);
+        Route::post('/expeditions/{id}/reception', [AgenceExpeditionController::class, 'reception']);
+        Route::post('/expeditions/{id}/configure-home-delivery', [AgenceExpeditionController::class, 'configureHomeDelivery']);
+        Route::post('/expeditions/{id}/prepare-agency-pickup', [AgenceExpeditionController::class, 'prepareAgencyPickup']);
+        Route::post('/expeditions/{id}/confirm-pickup', [AgenceExpeditionController::class, 'confirmPickup']);
     });
 
     // Routes clients
@@ -227,5 +242,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/edit/{zone}', [ZoneController::class, 'editZone']);
         Route::delete('/delete/{zone}', [ZoneController::class, 'deleteZone']);
         Route::put('/status/{zone}', [ZoneController::class, 'toggleStatusZone']);
+    });
+
+    // Routes commissions
+    Route::prefix('commissions')->group(function () {
+        Route::get('/list', [CommissionSettingController::class, 'list']);
+        Route::put('/edit/{commission}', [CommissionSettingController::class, 'edit']);
+        Route::put('/status/{commission}', [CommissionSettingController::class, 'toggleStatus']);
     });
 });
