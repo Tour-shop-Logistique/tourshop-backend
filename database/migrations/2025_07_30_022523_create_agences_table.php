@@ -11,6 +11,7 @@ return new class extends Migration
         Schema::create('agences', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('user_id')->nullable();
+            $table->string('code_agence',20);
             $table->string('nom_agence');
             $table->text('description')->nullable();
             $table->string('adresse');
@@ -26,7 +27,7 @@ return new class extends Migration
             $table->boolean('actif')->default(true);
             $table->text('message_accueil')->nullable();
             $table->timestamps();
-              $table->foreign('user_id')->references('id')->on('users')->nullOnDelete()->cascadeOnUpdate();
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete()->cascadeOnUpdate();
         });
     }
 

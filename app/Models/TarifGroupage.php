@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Enums\ModeExpedition;
+use App\Enums\TypeExpedition;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
@@ -41,8 +41,8 @@ class TarifGroupage extends Model
 
     protected $fillable = [
         'category_id',
-        'mode_expedition',
-        'tarif_minimum',
+        'type_expedition',
+        'prix_unitaire',
         'prix_modes',
         'actif',
         'pays',
@@ -51,7 +51,8 @@ class TarifGroupage extends Model
 
     protected $casts = [
         'prix_modes' => 'array',
-        'mode_expedition' => ModeExpedition::class,
+        'prix_unitaire' => 'decimal:2',
+        'type_expedition' => TypeExpedition::class,
         'actif' => 'boolean',
     ];
 

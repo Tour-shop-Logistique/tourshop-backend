@@ -55,7 +55,7 @@ class ZoneController extends Controller
                 'id' => ['required', 'string', 'regex:/^Z[1-8]$/', 'unique:zones,id'],
                 'nom' => ['required', 'string', 'max:255'],
                 'pays' => ['required', 'array', 'min:1'],
-                'pays.*' => ['string', 'max:120'],
+                'pays.*' => ['string', 'max:150'],
             ]);
 
             $zone = Zone::create([

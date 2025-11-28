@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Enums\ModeExpedition;
+use App\Enums\TypeExpedition;
 use App\Enums\ExpeditionStatus;
+use App\Enums\StatutPaiement;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -34,31 +35,21 @@ class Expedition extends Model
         // Expediteur
         'zone_depart_id',
         'pays_depart',
-        'expediteur_id',
-        'expediteur_nom',
-        'expediteur_telephone',
-        'expediteur_adresse',
+        'expediteur_contact_id',
 
         // Destinataire
         'zone_destination_id',
         'pays_destination',
-        'adresse_postale_destination',
-        'destinataire_id',
-        'destinataire_nom',
-        'destinataire_telephone',
-        'destinataire_adresse',
+        'destinataire_contact_id',
 
         // Mode d'expédition
-        'mode_expedition',
-        'articles', // [{description, photo, longueur, largeur, hauteur, volume, poids, quantite, category_id, produit_id}]
-        'poids_total',
-        'volume_total',
+        'type_expedition', // TypeExpedition::class
 
         // Montant
         'montant_base', // pour backoffice
-        'pourcentage_prestation',
+        'pourcentage_prestation', // pour agence
         'montant_prestation', // pour agence
-        'montant_expedition',
+        'montant_expedition', // montant de l'expedition
 
         // Frais
         'frais_enlevement_domicile', // pour livreur et agence
@@ -66,16 +57,17 @@ class Expedition extends Model
         'frais_emballage', // pour agence
         'frais_enlevement_agence', // pour backoffice
         'frais_retard_retrait', // pour agence et backoffice
+        'frais_douane', // pour client
 
         // Enlevement Domicile
         'is_enlevement_domicile',
-        'coord_enlevement',
+        'coord_enlevement', // coordinates
         'instructions_enlevement',
         'distance_domicile_agence', // distance en km
 
         // Livraison Domicile
         'is_livraison_domicile',
-        'coord_livraison',
+        'coord_livraison', // coordinates
         'instructions_livraison',
 
         'delai_retrait',
@@ -94,6 +86,7 @@ class Expedition extends Model
         'date_reception_agence', // Date de reception par l'agence du colis expédié
         'date_limite_retrait', // Date limite pour le retrait de colis par le client
         'date_reception_client', // Date de reception du colis par le client
+        'date_livraison_reelle', // Date réelle de livraison (pour statut DELIVERED)
         'date_annulation', // Date d'annulation de l'expedition 
 
         'motif_annulation',
@@ -110,49 +103,62 @@ class Expedition extends Model
     ];
 
     protected $casts = [
-        'mode_expedition' => ModeExpedition::class,
-        'articles' => 'array',
-        'photos_articles' => 'array',
-        'poids_total' => 'decimal:2',
-        'volume_total' => 'decimal:2',
+        // Mode et type
+        'type_expedition' => TypeExpedition::class,
 
+        // Montants
         'montant_base' => 'decimal:2',
         'pourcentage_prestation' => 'decimal:2',
         'montant_prestation' => 'decimal:2',
         'montant_expedition' => 'decimal:2',
 
+        // Frais
+        'frais_enlevement_domicile' => 'decimal:2',
+        'frais_livraison_domicile' => 'decimal:2',
+        'frais_emballage' => 'decimal:2',
+        'frais_enlevement_agence' => 'decimal:2',
+        'frais_retard_retrait' => 'decimal:2',
+        'frais_douane' => 'decimal:2',
+
+        // Booléens et Coordonnées
         'is_enlevement_domicile' => 'boolean',
+        'coord_enlevement' => 'array',
+        'distance_domicile_agence' => 'decimal:2',
         'is_livraison_domicile' => 'boolean',
+        'coord_livraison' => 'array',
+        'is_retard_retrait' => 'boolean',
         'is_paiement_credit' => 'boolean',
 
-        // Dates
-        'date_enlevement' => 'datetime',
-        'date_expedition' => 'datetime',
-        'date_livraison_prevue' => 'datetime',
-        'date_livraison_reelle' => 'datetime',
-
-        // Casts des propriétés fusionnées de Colis
-        'valeur_declaree' => 'decimal:2',
-        'commission_livreur_enlevement' => 'decimal:2',
-        'commission_livreur_livraison' => 'decimal:2',
-        'commission_agence' => 'decimal:2',
-
-        'livraison_express' => 'boolean',
-        'date_livraison' => 'datetime',
-
+        // Statuts
         'statut_expedition' => ExpeditionStatus::class,
-        'statut_paiement' => ExpeditionStatus::class,
+        'statut_paiement' => StatutPaiement::class,
+
+        // Dates
+        'date_prevue_enlevement' => 'datetime',
+        'date_enlevement_client' => 'datetime',
+        'date_livraison_agence' => 'datetime',
+        'date_deplacement_entrepot' => 'datetime',
+        'date_expedition_depart' => 'datetime',
+        'date_expedition_arrivee' => 'datetime',
+        'date_reception_agence' => 'datetime',
+        'date_limite_retrait' => 'datetime',
+        'date_reception_client' => 'datetime',
+        'date_livraison_reelle' => 'datetime',
+        'date_annulation' => 'datetime',
+
+        // Commissions
+        'commission_livreur_enlevement' => 'decimal:2',
+        'commission_agence_enlevement' => 'decimal:2',
+        'commission_livreur_livraison' => 'decimal:2',
+        'commission_agence_livraison' => 'decimal:2',
+        'commission_agence_retard' => 'decimal:2',
+        'commission_tourshop_retard' => 'decimal:2',
     ];
 
-    // Statuts de paiement
-    const PAIEMENT_EN_ATTENTE = 'en_attente';
-    const PAIEMENT_PAYE = 'paye';
-    const PAIEMENT_PARTIEL = 'partiel';
-    const PAIEMENT_REMBOURSE = 'rembourse';
 
-    public function produits()
+    public function colis(): HasMany
     {
-        return $this->hasMany(ExpeditionArticle::class);
+        return $this->hasMany(Colis::class, 'expedition_id');
     }
 
     public function agence(): BelongsTo
@@ -165,13 +171,14 @@ class Expedition extends Model
         return $this->belongsTo(User::class, 'client_id', 'user_id');
     }
 
-    public function expediteur(): BelongsTo
+    public function expediteurContact(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'expediteur_id', 'user_id');
+        return $this->belongsTo(ContactExpedition::class, 'expediteur_contact_id', 'contact_expedition_id');
     }
-    public function destinataire(): BelongsTo
+
+    public function destinataireContact(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'destinataire_id', 'user_id');
+        return $this->belongsTo(ContactExpedition::class, 'destinataire_contact_id', 'contact_expedition_id');
     }
 
     public function livreurEnlevement(): BelongsTo
@@ -200,23 +207,15 @@ class Expedition extends Model
     }
 
 
-    // Méthodes de calcul des totaux à partir du tableau JSON articles
+    // Méthodes de calcul des totaux à partir de la relation colis
     public function getPoidsTotal(): float
     {
-        $articles = $this->attributes['articles'] ?? $this->articles ?? [];
-        if (is_string($articles)) {
-            $articles = json_decode($articles, true) ?? [];
-        }
-        return (float) array_sum(array_column($articles, 'poids'));
+        return (float) $this->colis()->sum('poids');
     }
 
     public function getVolumeTotal(): float
     {
-        $articles = $this->attributes['articles'] ?? $this->articles ?? [];
-        if (is_string($articles)) {
-            $articles = json_decode($articles, true) ?? [];
-        }
-        return (float) array_sum(array_column($articles, 'volume'));
+        return (float) $this->colis()->sum('volume');
     }
 
 
@@ -347,12 +346,11 @@ class Expedition extends Model
             }
 
             if (empty($expedition->statut_paiement)) {
-                $expedition->statut_paiement = self::PAIEMENT_EN_ATTENTE;
+                $expedition->statut_paiement = StatutPaiement::EN_ATTENTE;
             }
         });
 
         static::saving(function ($expedition) {
-
             if ($expedition->articles) {
                 $articles = $expedition->articles;
                 foreach ($articles as &$article) {
@@ -362,12 +360,7 @@ class Expedition extends Model
                     }
                 }
                 $expedition->articles = $articles;
-                $expedition->poids_total = self::getPoidsTotal();
-                $expedition->volume_total = self::getVolumeTotal();
-
             }
         });
-
-
     }
 }

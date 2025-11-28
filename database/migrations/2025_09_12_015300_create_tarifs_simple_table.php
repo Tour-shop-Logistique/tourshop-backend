@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Enums\TypeExpedition;
 
 return new class extends Migration
 {
@@ -15,8 +16,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('backoffice_id')->nullable();
             $table->foreign('backoffice_id')->references('id')->on('backoffices')->onDelete('set null')->onUpdate('cascade');
-            $table->string('mode_expedition', 10)->default('simple');
-            // Définition du tarif (indice + mode + type)
+            $table->enum('type_expedition', [TypeExpedition::class])->default(TypeExpedition::LD);
             $table->decimal('indice', 5, 1);
             $table->string('pays')->nullable();
             // Prix par zone (JSON array)

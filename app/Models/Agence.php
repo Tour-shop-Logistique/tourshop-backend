@@ -27,6 +27,7 @@ class Agence extends Model
 
     protected $fillable = [
         'user_id',
+        'code_agence',
         'nom_agence',
         'telephone',
         'description',

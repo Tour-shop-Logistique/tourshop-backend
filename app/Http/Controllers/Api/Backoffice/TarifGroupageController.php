@@ -10,6 +10,7 @@ use App\Models\TarifGroupage;
 use App\Models\CategoryProduct;
 use App\Enums\UserType;
 use Exception;
+use App\Enums\TypeExpedition;
 
 class TarifGroupageController extends Controller
 {
@@ -26,7 +27,7 @@ class TarifGroupageController extends Controller
             if ($request->filled('category_id')) {
                 $query->where('category_id', $request->category_id);
             }
-            
+
             if ($user->type === UserType::BACKOFFICE) {
                 $query->where('backoffice_id', $user->backoffice_id);
             }
@@ -53,7 +54,9 @@ class TarifGroupageController extends Controller
 
             $request->validate([
                 'category_id' => ['required', 'uuid', 'exists:category_products,id'],
-                'tarif_minimum' => ['required', 'numeric', 'min:1'],
+                'type_expedition' => ['required', 'string', 'in:' . implode(',', TypeExpedition::cases())],
+                'prix_unitaire' => ['nullable', 'numeric', 'min:1'],
+                'pays' => ['nullable', 'string'],
                 'prix_modes' => ['required', 'array', 'min:1'],
                 'prix_modes.*.mode' => ['required', 'string'],
                 'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
@@ -67,10 +70,10 @@ class TarifGroupageController extends Controller
 
             $tarif = TarifGroupage::create([
                 'category_id' => $request->category_id,
-                'tarif_minimum' => $request->tarif_minimum,
-                'mode_expedition' => 'groupage',
+                'type_expedition' => $request->type_expedition,
+                'prix_unitaire' => $request->prix_unitaire,
                 'prix_modes' => $request->prix_modes,
-                'pays' => $user->backoffice->pays,
+                'pays' => $request->pays ?? $user->backoffice->pays,
                 'backoffice_id' => $user->backoffice->id,
             ]);
 
@@ -96,14 +99,15 @@ class TarifGroupageController extends Controller
             }
 
             $request->validate([
-                'tarif_minimum' => ['sometimes', 'numeric', 'min:1'],
+                'prix_unitaire' => ['sometimes', 'numeric', 'min:1'],
+                'pays' => ['sometimes', 'string'],
                 'prix_modes' => ['sometimes', 'array', 'min:1'],
                 'prix_modes.*.mode' => ['required', 'string'],
                 'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
                 'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            $tarif->update($request->only(['tarif_minimum', 'prix_modes']));
+            $tarif->update($request->only(['prix_unitaire', 'pays', 'prix_modes']));
 
             return response()->json(['success' => true, 'message' => 'Tarif groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {

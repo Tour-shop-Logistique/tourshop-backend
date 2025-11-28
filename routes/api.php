@@ -10,7 +10,7 @@ use App\Http\Controllers\Api\Backoffice\CommissionSettingController;
 use App\Http\Controllers\Api\Agence\AgenceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Agence\AgenceUserController;
-use App\Http\Controllers\Api\Agence\AgenceTarifController;
+use App\Http\Controllers\Api\Agence\AgenceTarifSimpleController;
 use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
 use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
 use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
@@ -125,12 +125,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/delete-user/{user}', [AgenceUserController::class, 'deleteUser']);
 
         // Gestion des tarifs simple de l'agence
-        Route::get('/list-tarifs-simple', [AgenceTarifController::class, 'list']);
-        Route::post('/add-tarif-simple', [AgenceTarifController::class, 'add']);
-        Route::put('/edit-tarif-simple/{tarif}', [AgenceTarifController::class, 'edit']);
-        Route::get('/show-tarif-simple/{tarif}', [AgenceTarifController::class, 'show']);
-        Route::delete('/delete-tarif-simple/{tarif}', [AgenceTarifController::class, 'delete']);
-        Route::put('/status-tarif-simple/{tarif}', [AgenceTarifController::class, 'toggleStatus']);
+        Route::get('/list-tarifs-simple', [AgenceTarifSimpleController::class, 'list']);
+        Route::post('/add-tarif-simple', [AgenceTarifSimpleController::class, 'add']);
+        Route::put('/edit-tarif-simple/{tarif}', [AgenceTarifSimpleController::class, 'edit']);
+        Route::get('/show-tarif-simple/{tarif}', [AgenceTarifSimpleController::class, 'show']);
+        Route::delete('/delete-tarif-simple/{tarif}', [AgenceTarifSimpleController::class, 'delete']);
+        Route::put('/status-tarif-simple/{tarif}', [AgenceTarifSimpleController::class, 'toggleStatus']);
 
         // Gestion des tarifs groupage de l'agence
         Route::get('/list-tarifs-groupage', [AgenceTarifGroupageController::class, 'list']);
@@ -141,47 +141,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/status-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'toggleStatus']);
 
         // Gestion des expéditions de l'agence
-        Route::get('/expeditions', [AgenceExpeditionController::class, 'list']);
-        Route::post('/expeditions', [AgenceExpeditionController::class, 'create']);
-        Route::get('/expeditions/{id}', [AgenceExpeditionController::class, 'show']);
-        Route::put('/expeditions/{id}/accept', [AgenceExpeditionController::class, 'accept']);
-        Route::put('/expeditions/{id}/refuse', [AgenceExpeditionController::class, 'refuse']);
-        Route::put('/expeditions/{id}/status', [AgenceExpeditionController::class, 'updateStatus']);
-
-        // Gestion des articles d'expédition
-        Route::get('/expeditions/{expeditionId}/articles', [ExpeditionArticleController::class, 'list']);
-        Route::post('/expeditions/{expeditionId}/articles', [ExpeditionArticleController::class, 'add']);
-        Route::put('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'edit']);
-        Route::delete('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'delete']);
+        Route::get('/list-expeditions', [AgenceExpeditionController::class, 'listerExpeditions']);
+        Route::post('/create-expedition', [AgenceExpeditionController::class, 'creerExpedition']);
+        Route::get('/show-expedition/{id}', [AgenceExpeditionController::class, 'voirDetailsExpedition']);
+        Route::put('/accept-expedition/{id}', [AgenceExpeditionController::class, 'accepterExpedition']);
+        Route::put('/refuse-expedition/{id}', [AgenceExpeditionController::class, 'refuserExpedition']);
+        Route::put('/update-expedition/{id}', [AgenceExpeditionController::class, 'mettreAJourStatut']);
 
         // Workflow complet Agence
-        Route::put('/expeditions/{id}/confirm-reception', [AgenceExpeditionController::class, 'confirmReception']);
-        Route::post('/expeditions/{id}/ship-to-warehouse', [AgenceExpeditionController::class, 'shipToWarehouse']);
-        Route::post('/expeditions/{id}/reception', [AgenceExpeditionController::class, 'reception']);
-        Route::post('/expeditions/{id}/configure-home-delivery', [AgenceExpeditionController::class, 'configureHomeDelivery']);
-        Route::post('/expeditions/{id}/prepare-agency-pickup', [AgenceExpeditionController::class, 'prepareAgencyPickup']);
-        Route::post('/expeditions/{id}/confirm-pickup', [AgenceExpeditionController::class, 'confirmPickup']);
+        Route::put('/confirm-expedition/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
+        Route::post('/ship-expedition/{id}/ship-to-warehouse', [AgenceExpeditionController::class, 'expedierVersEntrepot']);
+        Route::post('/receive-expedition/{id}/reception', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
+        Route::post('/configure-expedition/{id}/configure-home-delivery', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
+        Route::post('/prepare-expedition/{id}/prepare-agency-pickup', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
+        Route::post('/confirm-expedition/{id}/confirm-pickup', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
     });
 
     // Routes clients
     Route::prefix('client')->group(function () {
         // Gestion des expéditions du client
-        Route::get('/expeditions', [ClientExpeditionController::class, 'list']);
-        Route::post('/expeditions', [ClientExpeditionController::class, 'initiate']);
-        Route::get('/expeditions/{id}', [ClientExpeditionController::class, 'show']);
-        Route::put('/expeditions/{id}/cancel', [ClientExpeditionController::class, 'cancel']);
-        Route::post('/expeditions/simulate', [ClientExpeditionController::class, 'simulate']);
-        Route::get('/expeditions/statistics', [ClientExpeditionController::class, 'statistics']);
-
-        // Gestion des articles d'expédition
-        Route::get('/expeditions/{expeditionId}/articles', [ExpeditionArticleController::class, 'list']);
-        Route::post('/expeditions/{expeditionId}/articles', [ExpeditionArticleController::class, 'add']);
-        Route::put('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'edit']);
-        Route::delete('/expeditions/{expeditionId}/articles/{articleId}', [ExpeditionArticleController::class, 'delete']);
+        Route::get('/list-expeditions', [ClientExpeditionController::class, 'list']);
+        Route::post('/initiate-expedition', [ClientExpeditionController::class, 'initiate']);
+        Route::get('/show-expedition/{id}', [ClientExpeditionController::class, 'show']);
+        Route::put('/cancel-expedition/{id}', [ClientExpeditionController::class, 'cancel']);
+        Route::post('/simulate-expedition', [ClientExpeditionController::class, 'simulate']);
+        Route::get('/statistics-expeditions', [ClientExpeditionController::class, 'statistics']);
     });
-
-    // Routes générales pour les articles d'expédition (simulation)
-    Route::post('/expeditions/simulate-articles', [ExpeditionArticleController::class, 'simulate']);
 
     // Routes backoffice
     Route::prefix('backoffice')->group(function () {

@@ -7,10 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use App\Models\TarifSimple;
-use App\Models\TarifAgence;
 use App\Enums\UserType;
-use App\Enums\ModeExpedition;
-use App\Enums\TypeColis;
 use App\Models\TarifAgenceSimple;
 use Exception;
 
@@ -79,7 +76,7 @@ class TarifSimpleController extends Controller
             $tarif = TarifSimple::create([
                 'indice' => $request->indice,
                 'prix_zones' => $request->prix_zones,
-                'mode_expedition'=> 'simple',
+                'type_expedition'=> 'simple',
                 'pays' => $user->backoffice->pays,
                 'backoffice_id' => $user->backoffice->id
             ]);

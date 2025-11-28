@@ -9,12 +9,10 @@ use App\Models\Agence;
 use App\Models\TarifAgenceSimple;
 use App\Models\TarifSimple;
 use App\Enums\UserType;
-use App\Enums\ModeExpedition;
-use App\Enums\TypeColis;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
-class AgenceTarifController extends Controller
+class AgenceTarifSimpleController extends Controller
 {
     /**
      * Liste des tarifs de l'agence.

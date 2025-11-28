@@ -84,6 +84,7 @@ class AgenceController extends Controller
 
             // Valide les données d'entrée de la requête
             $request->validate([
+                'code_agence' => ['required', 'string', 'max:10'],
                 'nom_agence' => ['required', 'string', 'max:255'],
                 'telephone' => ['required', 'string', 'max:20'],
                 'description' => ['nullable', 'string', 'max:1000'],
@@ -118,6 +119,7 @@ class AgenceController extends Controller
             // Crée l'agence
             $agence = Agence::create([
                 'user_id' => $user->id,
+                'code_agence' => $request->code_agence,
                 'nom_agence' => $request->nom_agence,
                 'telephone' => $request->telephone,
                 'description' => $request->description,
@@ -432,9 +434,11 @@ class AgenceController extends Controller
             $topLivreurs = User::where('agence_id', $agence->id)
                 ->where('type', UserType::LIVREUR)
                 ->where('is_deleted', false)
-                ->withCount(['colisLivres as colis_livres' => function ($query) use ($agence) {
-                    $query->where('agence_id', $agence->id)->where('status', ColisStatus::LIVRE);
-                }])
+                ->withCount([
+                    'colisLivres as colis_livres' => function ($query) use ($agence) {
+                        $query->where('agence_id', $agence->id)->where('status', ColisStatus::LIVRE);
+                    }
+                ])
                 ->orderBy('colis_livres', 'desc')
                 ->limit(5)
                 ->get();

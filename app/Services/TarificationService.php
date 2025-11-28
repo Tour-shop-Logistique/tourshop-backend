@@ -7,7 +7,7 @@ use App\Models\TarifAgenceSimple;
 use App\Models\TarifAgenceGroupage;
 use App\Models\Zone;
 use App\Models\CategoryProduct;
-use App\Enums\ModeExpedition;
+use App\Enums\TypeExpedition;
 use App\Enums\TypeColis;
 use App\Services\ZoneService;
 
@@ -80,7 +80,7 @@ class TarificationService
         // 1) Si une agence est fournie, on cherche d'abord un tarif d'agence
         if ($agenceId) {
             // 1.a) Priorité: tarif d'agence GROUPAGE spécifique à la catégorie et au mode (agence/domicile)
-            if ($modeExpedition === ModeExpedition::GROUPAGE->value && !empty($categoryId)) {
+            if ($modeExpedition === TypeExpedition::GROUPAGE->value && !empty($categoryId)) {
                 $modeLivraison = $livraisonDomicile ? 'domicile' : 'agence';
                 $tag = TarifAgenceGroupage::where('agence_id', $agenceId)
                     ->where('category_id', $categoryId)
@@ -171,7 +171,6 @@ class TarificationService
             $donnees['hauteur'] ?? 0,
             $donnees['agence_id'] ?? null,
             $donnees['category_id'] ?? null,
-            (bool) ($donnees['livraison_domicile'] ?? false)
         );
 
         // Aucun tarif trouvé
@@ -179,7 +178,7 @@ class TarificationService
         $indiceArrondi = $this->arrondirIndice($indiceReference);
         if (!$tarif) {
             // Fallback groupage: utiliser le prix/kg de la catégorie si fourni
-            if (($donnees['mode_expedition'] ?? null) === ModeExpedition::GROUPAGE->value && !empty($donnees['category_id'])) {
+            if (($donnees['mode_expedition'] ?? null) === TypeExpedition::GROUPAGE->value && !empty($donnees['category_id'])) {
                 $category = CategoryProduct::find($donnees['category_id']);
                 if ($category && $category->prix_kg !== null) {
                     $prixBase = (float) $category->prix_kg * (float) $donnees['poids'];
@@ -244,7 +243,7 @@ class TarificationService
                 'devise' => 'FCFA',
                 'zone_destination' => $zoneDestination->nom,
                 'type_colis' => isset($donnees['type_colis']) && $donnees['type_colis'] ? TypeColis::from($donnees['type_colis'])->label() : null,
-                'mode_expedition' => ModeExpedition::from($donnees['mode_expedition'])->label(),
+                'mode_expedition' => TypeExpedition::from($donnees['mode_expedition'])->label(),
                 'poids_kg' => $donnees['poids'],
                 'dimensions_cm' => ($donnees['mode_expedition'] === 'simple') ? [
                     'longueur' => $donnees['longueur'] ?? 0,

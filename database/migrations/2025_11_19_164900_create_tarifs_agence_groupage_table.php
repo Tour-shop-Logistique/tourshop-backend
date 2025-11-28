@@ -12,8 +12,6 @@ return new class extends Migration {
 
             // Référence obligatoire vers l'agence
             $table->uuid('agence_id');
-
-
             $table->uuid('category_id');
 
             // Référence obligatoire vers le tarif groupage backoffice

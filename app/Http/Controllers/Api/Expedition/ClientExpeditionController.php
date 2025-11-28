@@ -315,7 +315,7 @@ class ClientExpeditionController extends Controller
                 'delivered' => Expedition::pourClient($client->id)->delivered()->count(),
                 'cancelled' => Expedition::pourClient($client->id)->cancelled()->count(),
                 'montant_total' => Expedition::pourClient($client->id)->sum('montant_expedition'),
-                'montant_paye' => Expedition::pourClient($client->id)->where('statut_paiement', Expedition::PAIEMENT_PAYE)->sum('montant_expedition')
+                'montant_paye' => Expedition::pourClient($client->id)->where('statut_paiement', \App\Enums\StatutPaiement::PAYE)->sum('montant_expedition')
             ];
 
             return response()->json([

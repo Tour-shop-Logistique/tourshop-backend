@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Models\Expedition;
-use App\Models\ExpeditionArticle;
 use App\Models\Zone;
+use App\Models\TarifAgenceSimple;
 use App\Services\TarificationService;
-use App\Enums\ModeExpedition;
+use App\Enums\TypeExpedition;
 use App\Services\CommissionService;
 use App\Services\ZoneService;
 
@@ -27,14 +27,14 @@ class ExpeditionTarificationService
     }
 
     /**
-     * Calcule le tarif d'une expédition en fonction de ses articles
+     * Calcule le tarif d'une expédition en fonction de ses colis
      */
     public function calculerTarifExpedition(Expedition $expedition): array
     {
-        if (empty($expedition->articles)) {
+        if ($expedition->colis()->count() === 0) {
             return [
                 'success' => false,
-                'message' => 'Aucun article dans cette expédition'
+                'message' => 'Aucun colis dans cette expédition'
             ];
         }
 
@@ -42,14 +42,13 @@ class ExpeditionTarificationService
         $zoneDepart = $this->zoneService->getZoneById($expedition->zone_depart_id);
         $zoneDestination = $this->zoneService->getZoneById($expedition->zone_destination_id);
 
-        if (!$zoneDepart || !$zoneDestination) {
-            return [
-                'success' => false,
-                'message' => 'Zone(s) invalide(s)'
-            ];
-        }
-
-        if ($expedition->mode_expedition === ModeExpedition::SIMPLE->value) {
+        if ($expedition->type_expedition === TypeExpedition::SIMPLE->value) {
+            if (!$zoneDepart || !$zoneDestination) {
+                return [
+                    'success' => false,
+                    'message' => 'Zone(s) invalide(s)'
+                ];
+            }
             return $this->calculerTarifSimple($expedition, $zoneDepart, $zoneDestination);
         } else {
             return $this->calculerTarifGroupage($expedition, $zoneDepart, $zoneDestination);
@@ -61,27 +60,49 @@ class ExpeditionTarificationService
      */
     private function calculerTarifSimple(Expedition $expedition, Zone $zoneDepart, Zone $zoneDestination): array
     {
+        $poids_total_kg = $expedition->getPoidsTotal(); // poids total en kg
+        $volume_total_cm3 = $expedition->getVolumeTotal(); // volume total en cm3
 
-        // Déterminer l'indice de référence selon la logique du TarificationService
-        // Convertir en float pour éviter les problèmes de type avec decimal/null
-        $indiceReference = (float) max($expedition->poids_total ?? 0, ($expedition->volume_total ?? 0) / 5000);
+        $indiceReference = (float) max($poids_total_kg ?? 0, ($volume_total_cm3 ?? 0) / 5000);
         $indiceArrondi = $this->tarificationService->arrondirIndice($indiceReference);
 
-        $donnees = [
-            'pays_depart' => $zoneDepart->pays[0] ?? '',
-            'pays_arrivee' => $zoneDestination->pays[0] ?? '',
-            'mode_expedition' => 'simple',
-            'poids' => $expedition->poids_total,
-            'longueur' => $expedition->longueur_totale,
-            'largeur' => $expedition->largeur_totale,
-            'hauteur' => $expedition->hauteur_totale,
-            'agence_id' => $expedition->agence_id,
-            'category_id' => null,
-            'livraison_domicile' => false,
-            'indice_reference' => $indiceArrondi
-        ];
+        // Chercher le tarif agence correspondant
+        $tarifAgence = TarifAgenceSimple::where('agence_id', $expedition->agence_id)
+            ->where('indice', $indiceArrondi)
+            ->where('actif', true)
+            ->first();
 
-        return $this->tarificationService->simulerTarification($donnees);
+        if (!$tarifAgence) {
+            return [
+                'success' => false,
+                'message' => "Aucun tarif trouvé pour l'indice {$indiceArrondi} dans cette agence."
+            ];
+        }
+
+        // Récupérer le prix pour la zone de destination
+        $prixZone = $tarifAgence->getPrixPourZone($zoneDestination->id);
+
+        if (!$prixZone) {
+            return [
+                'success' => false,
+                'message' => "Aucun tarif trouvé pour la zone de destination dans cette agence."
+            ];
+        }
+
+        return [
+            'success' => true,
+            'tarif' => [
+                // 'indice_reference' => $indiceArrondi,
+                // 'zone_depart_id' => $zoneDepart->id,
+                // 'pays_depart' => $expedition->pays_depart ?? '',
+                // 'zone_destination_id' => $zoneDestination->id,
+                // 'pays_arrivee' => $expedition->pays_destination ?? '',
+                'montant_base' => $prixZone['montant_base'],
+                'pourcentage_prestation' => $prixZone['pourcentage_prestation'],
+                'montant_prestation' => $prixZone['montant_prestation'],
+                'montant_expedition' => $prixZone['montant_expedition']
+            ]
+        ];
     }
 
     /**
@@ -92,25 +113,22 @@ class ExpeditionTarificationService
         $tarifsParArticle = [];
         $montantTotal = 0;
 
-        // Convertir le tableau JSON articles en Collection pour faciliter la manipulation
-        $articlesCollection = collect($expedition->articles ?? []);
+        // Charger les colis avec leurs relations
+        $colisList = $expedition->colis()->with(['category', 'produit'])->get();
 
-        // Grouper les articles par catégorie de produit
-        $articlesParCategorie = $articlesCollection
-            ->where('produit_id', '!=', null)
+        // Grouper les colis par catégorie de produit
+        $colisParCategorie = $colisList
+            ->whereNotNull('category_id')
             ->groupBy('category_id');
 
-        foreach ($articlesParCategorie as $categoryId => $articles) {
-            $poidsTotalCategorie = $articles->sum('poids');
+        foreach ($colisParCategorie as $categoryId => $colis) {
+            $poidsTotalCategorie = $colis->sum('poids');
 
             $donnees = [
                 'pays_depart' => $zoneDepart->pays[0] ?? '',
                 'pays_arrivee' => $zoneDestination->pays[0] ?? '',
-                'mode_expedition' => 'groupage',
-                'poids' => $poidsTotalCategorie,
-                'agence_id' => $expedition->agence_id,
+                'poids_kg' => $poidsTotalCategorie,
                 'category_id' => $categoryId,
-                'livraison_domicile' => false
             ];
 
             $resultatTarif = $this->tarificationService->simulerTarification($donnees);
@@ -118,29 +136,25 @@ class ExpeditionTarificationService
             if ($resultatTarif['success']) {
                 $tarifsParArticle[] = [
                     'category_id' => $categoryId,
-                    'category_nom' => $articles->first()['category_nom'] ?? 'Catégorie inconnue',
-                    'poids_total' => $poidsTotalCategorie,
-                    'nombre_articles' => $articles->count(),
+                    'category_nom' => $colis->first()->category->nom ?? 'Catégorie inconnue',
+                    'poids_total_kg' => $poidsTotalCategorie,
+                    'nombre_articles' => $colis->count(),
                     'tarif' => $resultatTarif['tarif']
                 ];
                 $montantTotal += $resultatTarif['simulation']['prix_total'];
             }
         }
 
-        // Traiter les articles sans catégorie (fallback sur prix/kg par défaut ou tarif standard)
-        $articlesSansCategorie = $articlesCollection->where('produit_id', null);
-        if ($articlesSansCategorie->isNotEmpty()) {
-            $poidsSansCategorie = $articlesSansCategorie->sum('poids');
+        // Traiter les colis sans catégorie
+        $colisSansCategorie = $colisList->whereNull('category_id');
+        if ($colisSansCategorie->isNotEmpty()) {
+            $poidsSansCategorie = $colisSansCategorie->sum('poids');
 
-            // Utiliser un tarif par défaut ou le premier tarif groupage disponible
             $donnees = [
                 'pays_depart' => $zoneDepart->pays[0] ?? '',
                 'pays_arrivee' => $zoneDestination->pays[0] ?? '',
-                'mode_expedition' => 'groupage',
-                'poids' => $poidsSansCategorie,
-                'agence_id' => $expedition->agence_id,
+                'poids_kg' => $poidsSansCategorie,
                 'category_id' => null,
-                'livraison_domicile' => false
             ];
 
             $resultatTarif = $this->tarificationService->simulerTarification($donnees);
@@ -148,90 +162,35 @@ class ExpeditionTarificationService
             if ($resultatTarif['success']) {
                 $tarifsParArticle[] = [
                     'category_id' => null,
-                    'category_nom' => 'Articles non catégorisés',
-                    'poids_total' => $poidsSansCategorie,
-                    'nombre_articles' => $articlesSansCategorie->count(),
+                    'category_nom' => 'Sans catégorie',
+                    'poids_total_kg' => $poidsSansCategorie,
+                    'nombre_articles' => $colisSansCategorie->count(),
                     'tarif' => $resultatTarif['tarif']
                 ];
                 $montantTotal += $resultatTarif['simulation']['prix_total'];
             }
         }
 
-        if (empty($tarifsParArticle)) {
-            return [
-                'success' => false,
-                'message' => 'Impossible de calculer le tarif pour cette expédition groupage'
-            ];
-        }
-
         return [
             'success' => true,
             'simulation' => [
-                'prix_total' => round($montantTotal, 2, PHP_ROUND_HALF_UP),
+                'pays_depart' => $zoneDepart->pays[0] ?? '',
+                'pays_arrivee' => $zoneDestination->pays[0] ?? '',
                 'devise' => 'FCFA',
-                'mode_expedition' => ModeExpedition::GROUPAGE->label(),
-                'poids_total_kg' => $expedition->poids_total,
-                'nombre_total_articles' => count($expedition->articles ?? []),
+                'mode_expedition' => TypeExpedition::GROUPAGE->label(),
+                'poids_total_kg' => $expedition->getPoidsTotal(),
+                'nombre_total_articles' => $colisList->count(),
                 'details_par_categorie' => $tarifsParArticle
             ],
             'tarif' => [
-                'source' => 'expedition_groupage',
+                'montant_base' => $montantTotal,
+                'pourcentage_prestation' => 0,
+                'montant_prestation' => 0,
                 'montant_expedition' => round($montantTotal, 2, PHP_ROUND_HALF_UP)
             ]
         ];
     }
 
-    /**
-     * Met à jour le tarif d'une expédition après modification des articles
-     */
-    public function mettreAJourTarifExpedition(Expedition $expedition): bool
-    {
-
-        // Calculer le nouveau tarif
-        $resultatTarif = $this->calculerTarifExpedition($expedition);
-
-        if ($resultatTarif['success']) {
-            $tarif = $resultatTarif['tarif'];
-            $expedition->update([
-                'montant_base' => $tarif['montant_base'] ?? 0,
-                'pourcentage_prestation' => $tarif['pourcentage_prestation'] ?? 0,
-                'montant_prestation' => $tarif['montant_prestation'] ?? 0,
-                'montant_expedition' => $tarif['montant_expedition']
-            ]);
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Simule le tarif pour une expédition avec des articles temporaires
-     */
-    public function simulerTarifExpedition(array $donneesExpedition, array $articles): array
-    {
-        // Créer une expédition temporaire pour la simulation
-        $expeditionTemporaire = new Expedition([
-            'mode_expedition' => $donneesExpedition['mode_expedition'],
-            'zone_depart_id' => $donneesExpedition['zone_depart_id'],
-            'zone_destination_id' => $donneesExpedition['zone_destination_id'],
-            'agence_id' => $donneesExpedition['agence_id'] ?? null
-        ]);
-
-        // Créer les articles temporaires
-        $articlesTemporaires = collect();
-        foreach ($articles as $articleData) {
-            $article = new ExpeditionArticle($articleData);
-            // Calculer les totaux pour cet article
-            $article->volume_total = $article->getVolumeTotalAttribute();
-            $article->poids_total = $article->getPoidsTotalAttribute();
-            $articlesTemporaires->push($article);
-        }
-
-        // Associer les articles à l'expédition temporaire
-        $expeditionTemporaire->setRelation('articles', $articlesTemporaires);
-
-        return $this->calculerTarifExpedition($expeditionTemporaire);
-    }
     /**
      * Calcule les commissions pour une expédition
      */
@@ -242,13 +201,13 @@ class ExpeditionTarificationService
         // Commission Livreur Enlèvement (si applicable)
         if ($expedition->frais_enlevement_domicile > 0) {
             $commissions['livreur_enlevement'] = $this->commissionService->calculateCommission(
-                $expedition->frais_enlevement_domicile,
+                (float) $expedition->frais_enlevement_domicile,
                 'commission_livreur_enlevement',
                 85.0 // Default 85%
             );
 
             $commissions['agence_enlevement'] = $this->commissionService->calculateCommission(
-                $expedition->frais_enlevement_domicile,
+                (float) $expedition->frais_enlevement_domicile,
                 'commission_agence_enlevement',
                 15.0 // Default 15%
             );
@@ -257,13 +216,13 @@ class ExpeditionTarificationService
         // Commission Livreur Livraison (si applicable)
         if ($expedition->frais_livraison_domicile > 0) {
             $commissions['livreur_livraison'] = $this->commissionService->calculateCommission(
-                $expedition->frais_livraison_domicile,
+                (float) $expedition->frais_livraison_domicile,
                 'commission_livreur_livraison',
                 90.0 // Default 90%
             );
 
             $commissions['agence_livraison'] = $this->commissionService->calculateCommission(
-                $expedition->frais_livraison_domicile,
+                (float) $expedition->frais_livraison_domicile,
                 'commission_agence_livraison',
                 10.0 // Default 10%
             );
@@ -272,13 +231,13 @@ class ExpeditionTarificationService
         // Commission Retard (si applicable)
         if ($expedition->frais_retard_retrait > 0) {
             $commissions['agence_retard'] = $this->commissionService->calculateCommission(
-                $expedition->frais_retard_retrait,
+                (float) $expedition->frais_retard_retrait,
                 'commission_agence_retard',
                 40.0 // Default 40%
             );
 
             $commissions['tourshop_retard'] = $this->commissionService->calculateCommission(
-                $expedition->frais_retard_retrait,
+                (float) $expedition->frais_retard_retrait,
                 'commission_tourshop_retard',
                 60.0 // Default 60%
             );
