@@ -19,10 +19,8 @@ class ColisArticle extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id',
         'colis_id',
-        'produit_id',
-        'designation',
+        'produit_id'
     ];
 
     public function colis(): BelongsTo
@@ -39,9 +37,9 @@ class ColisArticle extends Model
         parent::boot();
 
         static::creating(function ($article) {
-            if (empty($article->id)) {
-                $article->id = (string) Str::uuid();
-            }
+
+            $article->id = (string) Str::uuid();
+
         });
 
     }

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\TarifSimple;
 use App\Enums\UserType;
 use App\Models\TarifAgenceSimple;
+use App\Enums\TypeExpedition;
 use Exception;
 
 class TarifSimpleController extends Controller
@@ -76,7 +77,7 @@ class TarifSimpleController extends Controller
             $tarif = TarifSimple::create([
                 'indice' => $request->indice,
                 'prix_zones' => $request->prix_zones,
-                'type_expedition'=> 'simple',
+                'type_expedition'=> TypeExpedition::LD->value,
                 'pays' => $user->backoffice->pays,
                 'backoffice_id' => $user->backoffice->id
             ]);

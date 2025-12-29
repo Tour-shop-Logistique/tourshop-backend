@@ -30,16 +30,31 @@ class TarifAgenceGroupage extends Model
                 $prixModes = $model->prix_modes;
                 $tarifBack = TarifGroupage::find($model->tarif_groupage_id);
                 $baseByMode = [];
-                if ($tarifBack && is_array($tarifBack->prix_modes)) {
+                $defaultBase = null;
+
+                if ($tarifBack && is_array($tarifBack->prix_modes) && count($tarifBack->prix_modes) > 0) {
+                    // Le premier élément sert de défaut si aucun mode n'est spécifié
+                    $defaultBase = $tarifBack->prix_modes[0];
+
                     foreach ($tarifBack->prix_modes as $m) {
                         if (isset($m['mode'])) {
                             $baseByMode[$m['mode']] = $m;
                         }
                     }
                 }
+
                 foreach ($prixModes as &$mode) {
-                    if (isset($mode['mode']) && isset($mode['pourcentage_prestation'])) {
-                        $base = $baseByMode[$mode['mode']] ?? null;
+                    if (isset($mode['pourcentage_prestation'])) {
+                        $base = null;
+
+                        if (!empty($mode['mode']) && isset($baseByMode[$mode['mode']])) {
+                            // Mode spécifié et trouvé dans le tarif parent
+                            $base = $baseByMode[$mode['mode']];
+                        } elseif (empty($mode['mode'])) {
+                            // Mode non spécifié : utiliser le tarif par défaut (premier trouvé)
+                            $base = $defaultBase;
+                        }
+
                         if ($base && isset($base['montant_base'])) {
                             $mode['montant_base'] = $base['montant_base'];
                             $mode['montant_prestation'] = round(($mode['montant_base'] * $mode['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
@@ -78,6 +93,11 @@ class TarifAgenceGroupage extends Model
     public function tarifGroupage(): BelongsTo
     {
         return $this->belongsTo(TarifGroupage::class, 'tarif_groupage_id');
+    }
+
+    public function scopePourAgence($query, $agenceId)
+    {
+        return $query->where('agence_id', $agenceId);
     }
 
     public function scopeActif($query)

@@ -10,12 +10,14 @@ class CorsMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
+        $origin = $request->header('Origin');
+
         $headers = [
-            'Access-Control-Allow-Origin'      => '*',
-            'Access-Control-Allow-Methods'     => 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
-            'Access-Control-Allow-Headers'     => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-Socket-Id, Cache-Control, Pragma',
-            'Access-Control-Allow-Credentials' => 'false',
-            'Access-Control-Max-Age'           => '86400',
+            'Access-Control-Allow-Origin' => $origin ?: '*',
+            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PUT, DELETE, PATCH',
+            'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-CSRF-TOKEN, X-Socket-Id, Cache-Control, Pragma',
+            'Access-Control-Allow-Credentials' => 'true',
+            'Access-Control-Max-Age' => '86400',
         ];
 
         // Gérer les requêtes OPTIONS (preflight) en premier

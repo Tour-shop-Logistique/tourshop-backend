@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Agence;
 use App\Http\Controllers\Controller;
 use App\Models\Expedition;
 use App\Models\Agence;
+use App\Models\TarifAgenceGroupage;
 use App\Models\User;
 use App\Models\Colis;
 use App\Models\ColisArticle;
@@ -19,6 +20,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use App\Enums\ExpeditionStatus;
 use App\Enums\TypeExpedition;
+use App\Enums\StatutPaiement;
 use App\Enums\UserType;
 use Illuminate\Support\Facades\Log;
 
@@ -118,11 +120,10 @@ class AgenceExpeditionController extends Controller
                 'client_id' => 'nullable|uuid|exists:users,id',
                 'pays_depart' => ['required', 'string', 'max:150'],
                 'pays_destination' => ['required', 'string', 'max:150'],
-                'type_expedition' => ['required', 'in:simple,groupage'],
+                'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
                 'is_paiement_credit' => ['nullable', 'boolean'],
                 'is_livraison_domicile' => ['nullable', 'boolean'],
-                'frais_emballage' => ['nullable', 'numeric', 'min:0'],
-                'statut_paiement' => ['nullable', 'string', 'in:en_attente,paye,refuse'],
+                'statut_paiement' => ['nullable', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, StatutPaiement::cases()))],
 
                 // Validation Expéditeur
                 'expediteur_nom_prenom' => ['required', 'string', 'max:255'],
@@ -226,7 +227,6 @@ class AgenceExpeditionController extends Controller
                 'type_expedition' => $validated['type_expedition'],
                 'is_paiement_credit' => $validated['is_paiement_credit'],
                 'is_livraison_domicile' => $validated['is_livraison_domicile'],
-                'frais_emballage' => $validated['frais_emballage'],
                 'statut_paiement' => $validated['statut_paiement'],
                 'statut_expedition' => ExpeditionStatus::ACCEPTED,
                 'date_livraison_agence' => now(),
@@ -241,7 +241,7 @@ class AgenceExpeditionController extends Controller
                     $colis = Colis::create([
                         'expedition_id' => $expedition->id,
                         'code_colis' => $colisData['code_colis'],
-                        'designation' => $colisData['designation'],
+                        'designation' => $colisData['designation'] ?? null,
                         'poids' => $colisData['poids'],
                         'longueur' => $colisData['longueur'],
                         'largeur' => $colisData['largeur'],
@@ -259,28 +259,58 @@ class AgenceExpeditionController extends Controller
                     // Charger les articles avec leurs produits et catégories
                     $colis->load('articles.produit.category');
 
-                    // Calculer le prix_unitaire selon les pays
-                    $paysDepart = strtolower(trim($validated['pays_depart']));
-                    $paysDestination = strtolower(trim($validated['pays_destination']));
-                    
-                    $isCoteDivoireFrance = (str_contains($paysDepart, "ivoire") && str_contains($paysDestination, "france")) ||
-                        (str_contains($paysDepart, "france") && str_contains($paysDestination, "ivoire"));
+                    // Calculer le prix_unitaire selon le type d'expédition
+                    $prixUnitaire = null;
 
-                    if ($isCoteDivoireFrance) {
-                        // Utiliser le prix_kg de la catégorie du premier produit
-                        $premierArticle = $colis->articles->first();
-                        if ($premierArticle && $premierArticle->produit && $premierArticle->produit->category) {
-                            $prixUnitaire = $premierArticle->produit->category->prix_kg ?? 13500;
-                        } else {
-                            $prixUnitaire = 13500;
+                    if ($validated['type_expedition'] !== TypeExpedition::LD->value) {
+                        $paysDepart = strtolower(trim($validated['pays_depart']));
+                        $paysDestination = strtolower(trim($validated['pays_destination']));
+                        $isCoteDivoireFrance = (str_contains($paysDepart, "ivoire") && str_contains($paysDestination, "france")) ||
+                            (str_contains($paysDepart, "france") && str_contains($paysDestination, "ivoire"));
+
+                        // GROUPAGE_DHD : Côte d'Ivoire ↔ France - utiliser prix_kg de la catégorie
+                        if ($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD->value && $isCoteDivoireFrance) {
+                            $premierArticle = $colis->articles->first();
+                            if ($premierArticle && $premierArticle->produit && $premierArticle->produit->category) {
+                                $prixUnitaire = $premierArticle->produit->category->prix_kg;
+                            }
                         }
-                    } else {
-                        // Autres pays : prix fixe
-                        $prixUnitaire = 13500;
-                    }
+                        // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
+                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE->value) {
+                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                                ->whereHas('tarifGroupage', function ($query) use ($validated, $paysDestination) {
+                                    $query->where('type_expedition', $validated['type_expedition'])
+                                        ->whereRaw('LOWER(pays) = ?', [$paysDestination]);
+                                })
+                                ->with('tarifGroupage')
+                                ->first();
 
-                    // Mettre à jour le colis avec le prix_unitaire
-                    $colis->update(['prix_unitaire' => $prixUnitaire]);
+                            if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
+                                $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
+                            }
+                        }
+                        // GROUPAGE_CA : Tarif général sans filtre de pays
+                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA->value) {
+                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                                ->whereHas('tarifGroupage', function ($query) use ($validated) {
+                                    $query->where('type_expedition', $validated['type_expedition']);
+                                })
+                                ->with('tarifGroupage')
+                                ->first();
+
+                            if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
+                                $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
+                            }
+                        }
+
+                        // Mettre à jour le colis avec le prix_unitaire et prix_total
+                        if ($prixUnitaire !== null) {
+                            $colis->update([
+                                'prix_unitaire' => $prixUnitaire,
+                                'prix_total' => $prixUnitaire * $colis->poids
+                            ]);
+                        }
+                    }
 
                     // Si pas de désignation, générer à partir des produits
                     if ($colis->designation == null) {

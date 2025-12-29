@@ -12,14 +12,14 @@ return new class extends Migration {
 
             // Référence obligatoire vers l'agence
             $table->uuid('agence_id');
-            $table->uuid('category_id');
+            $table->uuid('category_id')->nullable();
 
             // Référence obligatoire vers le tarif groupage backoffice
             $table->uuid('tarif_groupage_id');
 
             // Prix personnalisés par mode (JSON array)
             // Chaque élément: {mode, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->json('prix_modes');
+            $table->json('prix_modes')->nullable();
 
             // Statut
             $table->boolean('actif')->default(true);

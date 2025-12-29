@@ -24,7 +24,6 @@ class Expedition extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id',
         'agence_id',
         'client_id',
         'livreur_enlevement_id',
@@ -349,18 +348,7 @@ class Expedition extends Model
                 $expedition->statut_paiement = StatutPaiement::EN_ATTENTE;
             }
         });
-
-        static::saving(function ($expedition) {
-            if ($expedition->articles) {
-                $articles = $expedition->articles;
-                foreach ($articles as &$article) {
-                    if (isset($article['longueur']) && isset($article['largeur']) && isset($article['hauteur'])) {
-                        $volume = (float) ($article['longueur'] * $article['largeur'] * $article['hauteur']);
-                        $article['volume'] = round($volume, 2, PHP_ROUND_HALF_UP);
-                    }
-                }
-                $expedition->articles = $articles;
-            }
-        });
+ 
+      
     }
 }

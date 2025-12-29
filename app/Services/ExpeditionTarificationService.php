@@ -42,7 +42,7 @@ class ExpeditionTarificationService
         $zoneDepart = $this->zoneService->getZoneById($expedition->zone_depart_id);
         $zoneDestination = $this->zoneService->getZoneById($expedition->zone_destination_id);
 
-        if ($expedition->type_expedition === TypeExpedition::SIMPLE->value) {
+        if ($expedition->type_expedition === TypeExpedition::LD->value) {
             if (!$zoneDepart || !$zoneDestination) {
                 return [
                     'success' => false,
@@ -177,7 +177,7 @@ class ExpeditionTarificationService
                 'pays_depart' => $zoneDepart->pays[0] ?? '',
                 'pays_arrivee' => $zoneDestination->pays[0] ?? '',
                 'devise' => 'FCFA',
-                'mode_expedition' => TypeExpedition::GROUPAGE->label(),
+                'type_expedition' => $expedition->type_expedition,
                 'poids_total_kg' => $expedition->getPoidsTotal(),
                 'nombre_total_articles' => $colisList->count(),
                 'details_par_categorie' => $tarifsParArticle

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
-use App\Enums\ModeExpedition;
+use App\Enums\TypeExpedition;
 
 class TarifSimple extends Model
 {
@@ -48,7 +48,7 @@ class TarifSimple extends Model
      */
     protected $fillable = [
         'indice',
-        'mode_expedition',
+        'type_expedition',
         'prix_zones',
         'actif',
         'pays',
@@ -61,7 +61,7 @@ class TarifSimple extends Model
     protected $casts = [
         'indice' => 'decimal:1',
         'prix_zones' => 'array',
-        'mode_expedition' => ModeExpedition::class,
+        'type_expedition' => TypeExpedition::class,
         'actif' => 'boolean',
     ];
 
@@ -76,10 +76,10 @@ class TarifSimple extends Model
     /**
      * Scope pour rechercher par critères
      */
-    public function scopePourCriteres($query, $zoneDestination, $modeExpedition, $indiceTrancheArrondi)
+    public function scopePourCriteres($query, $zoneDestination, $typeExpedition, $indiceTrancheArrondi)
     {
         $query->where('indice', $indiceTrancheArrondi)
-            ->where('mode_expedition', $modeExpedition)
+            ->where('type_expedition', $typeExpedition)
             ->where('actif', true);
 
         // Filtrer par zone dans le JSON prix_zones

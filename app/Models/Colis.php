@@ -55,18 +55,6 @@ class Colis extends Model
         return $this->hasMany(ColisArticle::class, 'colis_id');
     }
 
-    // Calcul du poids total pour ce colis (somme des poids des articles)
-    public function getPoidsTotalAttribute(): float
-    {
-        return (float) $this->poids * ($this->quantite ?? 1);
-    }
-
-    // Calcul du volume total pour ce colis
-    public function getVolumeTotalAttribute(): float
-    {
-        return $this->volume * ($this->quantite ?? 1);
-    }
-
     protected static function boot()
     {
         parent::boot();
@@ -82,9 +70,6 @@ class Colis extends Model
                 $colis->volume = round($colis->longueur * $colis->largeur * $colis->hauteur, 2);
             }
 
-            if ($colis->prix_unitaire && $colis->poids) {
-                $colis->prix_total = ($colis->prix_unitaire * $colis->poids) + $colis->prix_emballage;
-            }
         });
     }
 }

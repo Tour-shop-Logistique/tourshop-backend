@@ -36,7 +36,7 @@ class TarifGroupageController extends Controller
                 $query->where('pays', $user->agence->pays);
             }
 
-            $tarifs = $query->get();
+            $tarifs = $query->with('category:id,nom,prix_kg,pays')->get();
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
             Log::error('Erreur listing tarifs groupage : ' . $e->getMessage());
@@ -53,19 +53,39 @@ class TarifGroupageController extends Controller
             }
 
             $request->validate([
-                'category_id' => ['required', 'uuid', 'exists:category_products,id'],
-                'type_expedition' => ['required', 'string', 'in:' . implode(',', TypeExpedition::cases())],
+                'category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
+                'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
                 'prix_unitaire' => ['nullable', 'numeric', 'min:1'],
                 'pays' => ['nullable', 'string'],
                 'prix_modes' => ['required', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['required', 'string'],
+                'prix_modes.*.mode' => ['nullable', 'string'],
                 'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
                 'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
+ 
+            if ($request->category_id) {
+                $category = CategoryProduct::find($request->category_id);
+                if ($user->type === UserType::BACKOFFICE && $category->backoffice_id !== $user->backoffice_id) {
+                    return response()->json(['success' => false, 'message' => 'Cette catégorie n\'appartient pas à votre backoffice.'], 403);
+                }
+            }
 
-            $category = CategoryProduct::find($request->category_id);
-            if ($user->type === UserType::BACKOFFICE && $category->backoffice_id !== $user->backoffice_id) {
-                return response()->json(['success' => false, 'message' => 'Cette catégorie n\'appartient pas à votre backoffice.'], 403);
+            // Vérifier la restriction pour le type groupage_ca : un backoffice ne peut avoir qu'un seul tarif de ce type
+            $typeExpedition = TypeExpedition::tryFrom($request->type_expedition);
+            if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
+                $backofficeId = $user->backoffice_id ?? null;
+                if ($backofficeId) {
+                    $existingTarifGroupageCA = TarifGroupage::where('backoffice_id', $backofficeId)
+                        ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                        ->first();
+
+                    if ($existingTarifGroupageCA) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Un backoffice ne peut avoir qu\'un seul tarif de type groupage_ca.'
+                        ], 422);
+                    }
+                }
             }
 
             $tarif = TarifGroupage::create([
@@ -102,7 +122,7 @@ class TarifGroupageController extends Controller
                 'prix_unitaire' => ['sometimes', 'numeric', 'min:1'],
                 'pays' => ['sometimes', 'string'],
                 'prix_modes' => ['sometimes', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['required', 'string'],
+                'prix_modes.*.mode' => ['sometimes', 'string'],
                 'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
                 'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
