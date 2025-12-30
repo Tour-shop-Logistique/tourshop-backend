@@ -49,7 +49,7 @@ class User extends Authenticatable
         'agence_id',
         // Rattachement à un backoffice
         'backoffice_id',
-        
+
     ];
 
     protected $hidden = [
@@ -68,28 +68,28 @@ class User extends Authenticatable
     ];
 
     // Relations avec les colis et agences
-    public function expeditionsClient()
+    public function expeditions()
     {
-        // Un utilisateur peut expédier plusieurs colis
-        return $this->hasMany(Expedition::class, 'client_id', 'user_id');
+        // Un utilisateur peut avoir plusieurs expéditions (celles qu'il a enregistrées)
+        return $this->hasMany(Expedition::class, 'user_id', 'id');
     }
 
     public function expeditionsLivreurEnlevement()
     {
         // Un livreur (user) peut livrer plusieurs colis
-        return $this->hasMany(Expedition::class, 'livreur_enlevement_id','user_id');
+        return $this->hasMany(Expedition::class, 'livreur_enlevement_id', 'id');
     }
 
     public function expeditionsLivreurLivraison()
     {
         // Un livreur (user) peut livrer plusieurs colis
-        return $this->hasMany(Expedition::class, 'livreur_livraison_id','user_id');
+        return $this->hasMany(Expedition::class, 'livreur_livraison_id', 'id');
     }
 
     public function expeditionsLivreurDeplacement()
     {
         // Un livreur (user) peut livrer plusieurs colis
-        return $this->hasMany(Expedition::class, 'livreur_deplacement_id','user_id');
+        return $this->hasMany(Expedition::class, 'livreur_deplacement_id', 'id');
     }
 
     public function agence()

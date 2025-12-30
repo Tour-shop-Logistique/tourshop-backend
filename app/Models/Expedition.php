@@ -25,7 +25,7 @@ class Expedition extends Model
 
     protected $fillable = [
         'agence_id',
-        'client_id',
+        'user_id',
         'livreur_enlevement_id',
         'livreur_deplacement_id',
         'livreur_livraison_id',
@@ -165,9 +165,9 @@ class Expedition extends Model
         return $this->belongsTo(Agence::class);
     }
 
-    public function client(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'client_id', 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function expediteurContact(): BelongsTo
@@ -260,10 +260,10 @@ class Expedition extends Model
         return $query->where('agence_id', $agenceId);
     }
 
-    // Scope pour les expéditions d'un client
-    public function scopePourClient($query, $clientId)
+    // Scope pour les expéditions d'un utilisateur (celui qui a enregistré)
+    public function scopePourUser($query, $userId)
     {
-        return $query->where('client_id', $clientId);
+        return $query->where('user_id', $userId);
     }
 
     // Scope pour les expéditions d'un destinataire
@@ -348,7 +348,7 @@ class Expedition extends Model
                 $expedition->statut_paiement = StatutPaiement::EN_ATTENTE;
             }
         });
- 
-      
+
+
     }
 }

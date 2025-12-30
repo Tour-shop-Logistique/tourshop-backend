@@ -117,7 +117,7 @@ class AgenceExpeditionController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'client_id' => 'nullable|uuid|exists:users,id',
+                'user_id' => 'nullable|uuid|exists:users,id',
                 'pays_depart' => ['required', 'string', 'max:150'],
                 'pays_destination' => ['required', 'string', 'max:150'],
                 'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
@@ -170,14 +170,14 @@ class AgenceExpeditionController extends Controller
 
             $validated = $validator->validated();
 
-            // Vérifier que le client existe et est actif
-            if (isset($validated['client_id']) && $validated['client_id']) {
-                $client = User::where('id', $validated['client_id'])
+            // Vérifier que l'utilisateur (client) existe et est actif
+            if (isset($validated['user_id']) && $validated['user_id']) {
+                $client = User::where('id', $validated['user_id'])
                     ->where('type', 'client')
                     ->where('actif', true)
                     ->first();
                 if (!$client) {
-                    return response()->json(['success' => false, 'message' => 'Client invalide ou inactif'], 422);
+                    return response()->json(['success' => false, 'message' => 'Utilisateur (client) invalide ou inactif'], 422);
                 }
             }
 
@@ -216,7 +216,7 @@ class AgenceExpeditionController extends Controller
 
             // 3. Créer l'expédition    
             $expeditionData = [
-                'client_id' => $validated['client_id'],
+                'user_id' => $validated['user_id'] ?? $user->id,
                 'agence_id' => $agence->id,
                 'zone_depart_id' => $zoneDepart->id,
                 'zone_destination_id' => $zoneDestination->id,

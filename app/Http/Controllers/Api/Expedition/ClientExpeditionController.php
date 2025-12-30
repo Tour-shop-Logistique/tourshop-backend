@@ -37,7 +37,7 @@ class ClientExpeditionController extends Controller
 
             $client = $user; // L'utilisateur connecté est le client
 
-            $query = Expedition::pourClient($client->id)
+            $query = Expedition::pourUser($client->id)
                 ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination']);
 
             // Filtrage par statut
@@ -104,7 +104,7 @@ class ClientExpeditionController extends Controller
 
             // Créer l'expédition en attente de validation par l'agence (sans articles pour l'instant)
             $expedition = Expedition::create([
-                'client_id' => $client->id,
+                'user_id' => $client->id,
                 'agence_id' => $validated['agence_id'],
                 'zone_depart_id' => $validated['zone_depart_id'],
                 'zone_destination_id' => $validated['zone_destination_id'],
@@ -146,7 +146,7 @@ class ClientExpeditionController extends Controller
 
             $client = $user; // L'utilisateur connecté est le client
 
-            $expedition = Expedition::pourClient($client->id)
+            $expedition = Expedition::pourUser($client->id)
                 ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination'])
                 ->find($id);
 
@@ -188,7 +188,7 @@ class ClientExpeditionController extends Controller
                 return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            $expedition = Expedition::pourClient($client->id)
+            $expedition = Expedition::pourUser($client->id)
                 ->whereIn('statut', [\App\Enums\ExpeditionStatus::EN_ATTENTE, \App\Enums\ExpeditionStatus::ACCEPTED])
                 ->find($id);
 
@@ -306,16 +306,16 @@ class ClientExpeditionController extends Controller
             $client = $user; // L'utilisateur connecté est le client
 
             $stats = [
-                'total' => Expedition::pourClient($client->id)->count(),
-                'en_attente' => Expedition::pourClient($client->id)->enAttente()->count(),
-                'accepted' => Expedition::pourClient($client->id)->accepted()->count(),
-                'refused' => Expedition::pourClient($client->id)->refused()->count(),
-                'in_progress' => Expedition::pourClient($client->id)->inProgress()->count(),
-                'shipped' => Expedition::pourClient($client->id)->shipped()->count(),
-                'delivered' => Expedition::pourClient($client->id)->delivered()->count(),
-                'cancelled' => Expedition::pourClient($client->id)->cancelled()->count(),
-                'montant_total' => Expedition::pourClient($client->id)->sum('montant_expedition'),
-                'montant_paye' => Expedition::pourClient($client->id)->where('statut_paiement', \App\Enums\StatutPaiement::PAYE)->sum('montant_expedition')
+                'total' => Expedition::pourUser($client->id)->count(),
+                'en_attente' => Expedition::pourUser($client->id)->enAttente()->count(),
+                'accepted' => Expedition::pourUser($client->id)->accepted()->count(),
+                'refused' => Expedition::pourUser($client->id)->refused()->count(),
+                'in_progress' => Expedition::pourUser($client->id)->inProgress()->count(),
+                'shipped' => Expedition::pourUser($client->id)->shipped()->count(),
+                'delivered' => Expedition::pourUser($client->id)->delivered()->count(),
+                'cancelled' => Expedition::pourUser($client->id)->cancelled()->count(),
+                'montant_total' => Expedition::pourUser($client->id)->sum('montant_expedition'),
+                'montant_paye' => Expedition::pourUser($client->id)->where('statut_paiement', \App\Enums\StatutPaiement::PAYE)->sum('montant_expedition')
             ];
 
             return response()->json([
