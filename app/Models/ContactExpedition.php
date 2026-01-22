@@ -22,6 +22,9 @@ class ContactExpedition extends Model
         parent::boot();
         static::creating(function ($model) {
             $model->{$model->getKeyName()} = (string) Str::uuid();
+            if (empty($model->reference)) {
+                $model->reference = 'CT-' . strtoupper(Str::random(10));
+            }
         });
     }
 
@@ -29,6 +32,7 @@ class ContactExpedition extends Model
      * Les attributs qui peuvent être massivement assignés
      */
     protected $fillable = [
+        'reference',
         'type_contact',
         'nom_prenom',
         'societe',

@@ -22,12 +22,12 @@ return new class extends Migration
             // Coordonnées
             $table->string('telephone');
             $table->string('email')->nullable();
-            $table->text('adresse');
             $table->string('pays');
-            $table->string('ville');
-            $table->string('etat');
-            $table->string('quartier');
-            $table->string('code_postal');
+            $table->string('adresse')->nullable();
+            $table->string('ville')->nullable();
+            $table->string('etat')->nullable();
+            $table->string('quartier')->nullable();
+            $table->string('code_postal')->nullable();
             // Timestamps
             $table->timestamps();
             // Index

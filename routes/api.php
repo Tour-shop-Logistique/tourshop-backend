@@ -1,11 +1,5 @@
 <?php
 
-
-use App\Http\Controllers\Api\TarifController;
-use App\Http\Controllers\Api\Client\ColisController;
-use App\Http\Controllers\Api\TarificationController;
-use App\Http\Controllers\Api\Livreur\MissionController;
-use App\Http\Controllers\Api\Agence\AgenceNotificationController;
 use App\Http\Controllers\Api\Backoffice\CommissionSettingController;
 use App\Http\Controllers\Api\Agence\AgenceController;
 use App\Http\Controllers\Api\AuthController;
@@ -21,7 +15,6 @@ use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
 use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
 use App\Http\Controllers\Api\Expedition\ClientExpeditionController;
-use App\Http\Controllers\Api\Expedition\ExpeditionArticleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +41,7 @@ Route::get('/test-cors', function (Request $request) {
     ]);
 });
 
+
 Route::post('/register', [AuthController::class, 'register']); // Inscription
 Route::post('/login', [AuthController::class, 'login']); // Connexion
 
@@ -57,57 +51,54 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']); // Déconnexion
     Route::get('/profil', [AuthController::class, 'profile']); // Profil de l'utilisateur connecté
 
-    // Routes clients
-    /*Route::prefix('client')->group(function () {
-        Route::get('/colis', [ColisController::class, 'index']);
-        Route::post('/colis', [ColisController::class, 'store']);
-        Route::get('/colis/{id}', [ColisController::class, 'show']);
-        Route::post('/colis/{id}/annuler', [ColisController::class, 'annuler']);
-        Route::get('/suivre/{codesuivi}', [ColisController::class, 'suivre']);
-        Route::get('/colis/search-destinataires', [ColisController::class, 'searchDestinataires']);
-        Route::post('/tarification/simuler', [TarificationController::class, 'simuler']);
-        Route::get('/agences-proches', [TarificationController::class, 'agencesProches']);
-    });*/
+    // --- GESTION GLOBALE DES EXPÉDITIONS ---
+    Route::prefix('expedition')->group(function () {
 
-    // Routes livreurs
-    Route::prefix('livreur')->group(function () {
-        Route::get('/missions', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'index']);
-        Route::post('/enlevement/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startEnlevement']);
-        Route::post('/enlevement/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmEnlevement']);
-        Route::post('/reception-agence/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmReceptionAgence']);
-        Route::post('/livraison/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startLivraison']);
-        Route::post('/livraison/{id}/validate', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'validateLivraison']);
+        // Côté Client
+        Route::prefix('client')->group(function () {
+            Route::get('/list', [ClientExpeditionController::class, 'list']);
+            Route::post('/initiate', [ClientExpeditionController::class, 'initiate']);
+            Route::get('/show/{id}', [ClientExpeditionController::class, 'show']);
+            Route::put('/cancel/{id}', [ClientExpeditionController::class, 'cancel']);
+            Route::post('/simulate', [ClientExpeditionController::class, 'simulate']);
+            Route::get('/statistics', [ClientExpeditionController::class, 'statistics']);
+        });
+
+        // Côté Agence
+        Route::prefix('agence')->group(function () {
+            Route::get('/list', [AgenceExpeditionController::class, 'listerExpeditions']);
+            Route::post('/create', [AgenceExpeditionController::class, 'creerExpedition']);
+            Route::get('/show/{id}', [AgenceExpeditionController::class, 'voirDetailsExpedition']);
+            Route::put('/accept/{id}', [AgenceExpeditionController::class, 'accepterExpedition']);
+            Route::put('/refuse/{id}', [AgenceExpeditionController::class, 'refuserExpedition']);
+            Route::put('/status/{id}', [AgenceExpeditionController::class, 'mettreAJourStatut']);
+
+            // Workflow opérationnel agence
+            Route::put('/confirm-reception/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
+            Route::post('/ship-to-warehouse/{id}', [AgenceExpeditionController::class, 'expedierVersEntrepot']);
+            Route::post('/receive-from-warehouse/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
+            Route::post('/configure-delivery/{id}', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
+            Route::post('/prepare-pickup/{id}', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
+            Route::post('/confirm-pickup/{id}', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
+        });
+
+        // Côté Livreur
+        Route::prefix('livreur')->group(function () {
+            Route::get('/missions', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'index']);
+            Route::post('/enlevement/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startEnlevement']);
+            Route::post('/enlevement/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmEnlevement']);
+            Route::post('/reception-agence/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmReceptionAgence']);
+            Route::post('/livraison/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startLivraison']);
+            Route::post('/livraison/{id}/validate', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'validateLivraison']);
+        });
+
+        // Côté Entrepôt
+        Route::prefix('entrepot')->group(function () {
+            Route::post('/receive/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'receive']);
+            Route::post('/ship/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'ship']);
+            Route::post('/confirm-arrival/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'confirmArrival']);
+        });
     });
-
-    // Routes entrepôt
-    Route::prefix('entrepot')->group(function () {
-        Route::post('/expeditions/{id}/receive', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'receive']);
-        Route::post('/expeditions/{id}/ship', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'ship']);
-        Route::post('/expeditions/{id}/confirm-arrival', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'confirmArrival']);
-    });
-
-    // Tableau de bord et statistiques
-    /*Route::get('/dashboard', [AgenceController::class, 'dashboard']);  // Tableau de bord avec statistiques
-    Route::get('/statistiques', [AgenceController::class, 'statistiques']);  // Statistiques détaillées
-    Route::get('/livreurs-disponibles', [AgenceController::class, 'livreursDisponibles']);  // Liste des livreurs
-
-    // Application Agence: workflow opérationnel
-    Route::get('/expeditions', [ExpeditionController::class, 'colis']);
-    Route::get('/expeditions/recherche', [ExpeditionController::class, 'rechercheColis']);  // Recherche avancée
-    Route::get('/expeditions/{colis}', [ExpeditionController::class, 'detailsColis']);  // Détails d'un colis
-    Route::post('/expeditions/{colis}/accepter', [ExpeditionController::class, 'accepter']);
-    Route::post('/expeditions/{colis}/refuser', [ExpeditionController::class, 'refuser']);
-    Route::post('/expeditions/{colis}/assign-livreur', [ExpeditionController::class, 'assignerLivreur']);
-    Route::post('/expeditions/{colis}/statut', [ExpeditionController::class, 'changerStatut']);
-    Route::post('/expeditions/{colis}/preuves', [ExpeditionController::class, 'ajouterPreuves']);
-    Route::post('/expeditions/{colis}/verifier', [ExpeditionController::class, 'verifier']);
-
-
-    // Notifications de l'agence
-    Route::get('/notifications', [AgenceNotificationController::class, 'index']);
-    Route::put('/notifications/{notificationId}/lue', [AgenceNotificationController::class, 'marquerLue']);
-    Route::put('/notifications/toutes-lues', [AgenceNotificationController::class, 'marquerToutesLues']);
-    Route::delete('/notifications/{notificationId}', [AgenceNotificationController::class, 'supprimer']);*/
 
     // Routes agences
     Route::prefix('agence')->group(function () {
@@ -139,34 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'show']);
         Route::delete('/delete-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'delete']);
         Route::put('/status-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'toggleStatus']);
-
-        // Gestion des expéditions de l'agence
-        Route::get('/list-expeditions', [AgenceExpeditionController::class, 'listerExpeditions']);
-        Route::post('/create-expedition', [AgenceExpeditionController::class, 'creerExpedition']);
-        Route::get('/show-expedition/{id}', [AgenceExpeditionController::class, 'voirDetailsExpedition']);
-        Route::put('/accept-expedition/{id}', [AgenceExpeditionController::class, 'accepterExpedition']);
-        Route::put('/refuse-expedition/{id}', [AgenceExpeditionController::class, 'refuserExpedition']);
-        Route::put('/update-expedition/{id}', [AgenceExpeditionController::class, 'mettreAJourStatut']);
-
-        // Workflow complet Agence
-        Route::put('/confirm-expedition/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
-        Route::post('/ship-expedition/{id}/ship-to-warehouse', [AgenceExpeditionController::class, 'expedierVersEntrepot']);
-        Route::post('/receive-expedition/{id}/reception', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
-        Route::post('/configure-expedition/{id}/configure-home-delivery', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
-        Route::post('/prepare-expedition/{id}/prepare-agency-pickup', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
-        Route::post('/confirm-expedition/{id}/confirm-pickup', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
-    });
-
-    // Routes clients
-    Route::prefix('client')->group(function () {
-        // Gestion des expéditions du client
-        Route::get('/list-expeditions', [ClientExpeditionController::class, 'list']);
-        Route::post('/initiate-expedition', [ClientExpeditionController::class, 'initiate']);
-        Route::get('/show-expedition/{id}', [ClientExpeditionController::class, 'show']);
-        Route::put('/cancel-expedition/{id}', [ClientExpeditionController::class, 'cancel']);
-        Route::post('/simulate-expedition', [ClientExpeditionController::class, 'simulate']);
-        Route::get('/statistics-expeditions', [ClientExpeditionController::class, 'statistics']);
-    });
+  });
 
     // Routes backoffice
     Route::prefix('backoffice')->group(function () {

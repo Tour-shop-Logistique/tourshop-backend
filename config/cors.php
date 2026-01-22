@@ -19,16 +19,25 @@ return [
 
     'allowed_methods' => ['POST', 'GET', 'OPTIONS', 'PUT', 'PATCH', 'DELETE'],
 
-    'allowed_origins' => ['*'], // Accepter toutes les origines pour le développement
+    'allowed_origins' => [
+        '*',
+        // Ajoutez d'autres origines si nécessaire
+    ],
 
     'allowed_origins_patterns' => [
-        '*'
-        // 'http?://localhost:[0-9]+',
-        // 'http?://127\.0\.0\.1:[0-9]+',
-        // 'http?://192\.168\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe C
-        // 'http?://10\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe A
-        // 'http?://172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe B
-        // 'http?://[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+', // Toute adresse IP pour les tunnels
+        // Patterns regex pour les tunnels et localhost
+        'https?://.*\.pinggy\.link', // Pinggy tunnels
+        'https?://.*\.serveousercontent\.com', // Serveo tunnels
+        'https?://.*\.loca\.lt', // Tunnelmole
+        'https?://.*\.localhost', // Localhost tunnels
+        'https?://.*\.nport\.link', // Nport tunnels
+        'https?://.*\.ngrok\.io', // Ngrok
+        'https?://.*\.ngrok-free\.app', // Ngrok free
+        'http?://localhost:[0-9]+', // Localhost avec port
+        'http?://127\.0\.0\.1:[0-9]+', // 127.0.0.1 avec port
+        'http?://192\.168\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe C
+        'http?://10\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe A
+        'http?://172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+:[0-9]+', // Réseau privé classe B
     ],
 
     'allowed_headers' => [
@@ -53,7 +62,7 @@ return [
         'X-CSRF-TOKEN'
     ],
 
-    'max_age' => 60 * 60 * 24, // 24 heures
+    'max_age' => 60 * 60 * 48, // 48 heures (172800 secondes) - Cache plus long pour réduire les requêtes OPTIONS
 
     'supports_credentials' => true,
 

@@ -98,7 +98,7 @@ class AgenceController extends Controller
                 'horaires.*.jour' => ['required_with:horaires', 'string', 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche'],
                 'horaires.*.ouverture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
                 'horaires.*.fermeture' => ['required_with:horaires', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
-                'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048'],
+                'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:10240'], // 10MB max
             ]);
 
             // Normaliser le champ horaires (accepter array ou JSON string)
@@ -197,7 +197,7 @@ class AgenceController extends Controller
             // Retourne les informations de l'agence
             return response()->json([
                 'success' => true,
-                'agence' => $agence->toArray() // Convertit le modèle en tableau pour la réponse JSON
+                'agence' => $agence // Convertit le modèle en tableau pour la réponse JSON
             ]);
         } catch (Exception $e) {
             // Log l'erreur pour le débogage et retourne une réponse générique

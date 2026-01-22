@@ -70,8 +70,10 @@ class TarifAgenceGroupage extends Model
     protected $fillable = [
         'agence_id',
         'tarif_groupage_id',
+        'type_expedition',
         'category_id',
         'prix_modes',
+        'pays',
         'actif',
     ];
 
@@ -103,5 +105,26 @@ class TarifAgenceGroupage extends Model
     public function scopeActif($query)
     {
         return $query->where('actif', true);
+    }
+
+    /**
+     * Obtenir le prix pour un mode spécifique
+     * 
+     * @param string $mode Le mode de transport (avion, bateau, afrique, etc.)
+     * @return array|null Le prix pour le mode ou null si non trouvé
+     */
+    public function getPrixPourMode(string $mode)
+    {
+        if (!$this->prix_modes) {
+            return null;
+        }
+
+        foreach ($this->prix_modes as $prixMode) {
+            if ($prixMode['mode'] === $mode) {
+                return $prixMode;
+            }
+        }
+
+        return null;
     }
 }

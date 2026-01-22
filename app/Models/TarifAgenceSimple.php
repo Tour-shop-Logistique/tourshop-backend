@@ -114,20 +114,21 @@ class TarifAgenceSimple extends Model
     /**
      * Scope pour rechercher par critères d'agence
      */
-    public function scopePourCriteres($query, $agenceId, $zoneDestination, $modeExpedition, $indiceTrancheArrondi)
+    public function scopePourCriteres($query, $agenceId, $zoneDestination, $indiceTrancheArrondi)
     {
         return $query->where('agence_id', $agenceId)
-            ->where('actif', true)
-            ->whereHas('tarifSimple', function ($subQuery) use ($zoneDestination, $modeExpedition, $indiceTrancheArrondi) {
-                $subQuery->where('indice', $indiceTrancheArrondi)
-                    ->where('mode_expedition', $modeExpedition)
-                    ->where('actif', true);
-
-                // Vérifier que le tarif simple contient la zone demandée
-                $subQuery->whereJsonContains('prix_zones', function ($zone) use ($zoneDestination) {
-                    return $zone['zone_destination_id'] === $zoneDestination;
-                });
-            });
+            ->where('indice', $indiceTrancheArrondi)
+            ->where('actif', true);
+            // // Vérifier que le tarif agence contient la zone demandée dans son prix_zones
+            // // Pour PostgreSQL : utiliser jsonb_array_elements pour parcourir le tableau JSONB
+            // ->whereRaw(
+            //     "EXISTS (
+            //         SELECT 1 
+            //         FROM jsonb_array_elements(prix_zones) AS zone
+            //         WHERE zone->>'zone_destination_id' = ?
+            //     )",
+            //     [$zoneDestination]
+            // );
     }
 
     public function scopeActif($query)

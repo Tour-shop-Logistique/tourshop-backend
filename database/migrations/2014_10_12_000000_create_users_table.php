@@ -20,7 +20,7 @@ return new class extends Migration
             $table->timestamp('telephone_verified_at')->nullable();
             $table->string('password');
             $table->string('avatar')->nullable();
-            $table->json('adresses_favoris')->nullable(); // Pour clients
+            $table->jsonb('adresses_favoris')->nullable(); // Pour clients
             $table->boolean('disponible')->default(true); // Pour livreurs
             $table->boolean('actif')->default(true);
             $table->boolean('is_deleted')->default(false);

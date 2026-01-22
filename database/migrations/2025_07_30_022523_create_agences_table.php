@@ -21,8 +21,8 @@ return new class extends Migration
             $table->string('telephone', 20)->nullable();
             $table->decimal('latitude', 10, 8);
             $table->decimal('longitude', 11, 8);
-            $table->json('horaires')->nullable();
-            $table->json('photos')->nullable();
+            $table->jsonb('horaires')->nullable();
+            $table->jsonb('photos')->nullable();
             $table->string('logo')->nullable();
             $table->boolean('actif')->default(true);
             $table->text('message_accueil')->nullable();

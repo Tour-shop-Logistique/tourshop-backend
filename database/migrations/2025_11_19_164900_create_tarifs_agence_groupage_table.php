@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use App\Enums\TypeExpedition;
 
 return new class extends Migration {
     public function up(): void
@@ -16,10 +17,12 @@ return new class extends Migration {
 
             // Référence obligatoire vers le tarif groupage backoffice
             $table->uuid('tarif_groupage_id');
+            $table->enum('type_expedition', [TypeExpedition::class]);
 
-            // Prix personnalisés par mode (JSON array)
+            // Prix personnalisés par mode (JSONB array)
             // Chaque élément: {mode, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->json('prix_modes')->nullable();
+            $table->jsonb('prix_modes')->nullable();
+            $table->string('pays')->nullable();
 
             // Statut
             $table->boolean('actif')->default(true);

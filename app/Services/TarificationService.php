@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\TarifSimple;
-use App\Models\TarifAgenceSimple;
-use App\Models\TarifAgenceGroupage;
-use App\Models\Zone;
-use App\Models\CategoryProduct;
-use App\Enums\TypeExpedition;
 use App\Enums\TypeColis;
+use App\Enums\TypeExpedition;
+use App\Models\CategoryProduct;
+use App\Models\TarifAgenceGroupage;
+use App\Models\TarifAgenceSimple;
+use App\Models\TarifSimple;
+use App\Models\Zone;
 use App\Services\ZoneService;
 
 class TarificationService
@@ -19,6 +19,7 @@ class TarificationService
     {
         $this->zoneService = $zoneService;
     }
+
     /**
      * Calcule le volume en cm³ puis divise par le facteur (défaut 5000)
      */
@@ -64,23 +65,17 @@ class TarificationService
      */
     public function trouverTarifPourColis(
         string $zoneDestination,
-        string $modeExpedition,
+        string $typeExpedition,
         float $poids,
-        float $longueur = 0,
-        float $largeur = 0,
-        float $hauteur = 0,
         ?string $agenceId = null,
         ?string $categoryId = null,
-        bool $livraisonDomicile = false
+        bool $livraisonDomicile = false,
+        ?float $indiceArrondi = null
     ): ?array {
-        // Calculer l'indice de référence
-        $indiceReference = $this->determinerIndiceReference($poids, $longueur, $largeur, $hauteur);
-        $indiceArrondi = $this->arrondirIndice($indiceReference);
-
         // 1) Si une agence est fournie, on cherche d'abord un tarif d'agence
         if ($agenceId) {
             // 1.a) Priorité: tarif d'agence GROUPAGE spécifique à la catégorie et au mode (agence/domicile)
-            if ($modeExpedition === TypeExpedition::GROUPAGE->value && !empty($categoryId)) {
+            if ($typeExpedition !== TypeExpedition::LD && !empty($categoryId)) {
                 $modeLivraison = $livraisonDomicile ? 'domicile' : 'agence';
                 $tag = TarifAgenceGroupage::where('agence_id', $agenceId)
                     ->where('category_id', $categoryId)
@@ -92,10 +87,6 @@ class TarificationService
                     foreach ($prixModes as $m) {
                         if (($m['mode'] ?? null) === $modeLivraison) {
                             return [
-                                'source' => 'agence_groupage',
-                                'id' => $tag->id,
-                                'indice' => null,
-                                'agence_nom' => optional($tag->agence)->nom,
                                 'montant_base' => round((float) $m['montant_base'], 2, PHP_ROUND_HALF_UP),
                                 'pourcentage_prestation' => round((float) $m['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
                                 'montant_prestation' => round((float) $m['montant_prestation'], 2, PHP_ROUND_HALF_UP),
@@ -107,44 +98,41 @@ class TarificationService
             }
 
             // 1.b) Sinon, tenter le tarif d'agence SIMPLE existant basé sur un tarif de base correspondant
-            $tarifAgence = TarifAgenceSimple::pourCriteres($agenceId, $zoneDestination, $modeExpedition, $indiceArrondi)
+            $tarifAgence = TarifAgenceSimple::where('agence_id', $agenceId)
+                ->where('indice', $indiceArrondi)
+                ->actif()
                 ->first();
 
             if ($tarifAgence) {
                 $prixZoneAgence = $tarifAgence->getPrixPourZone($zoneDestination);
                 if ($prixZoneAgence) {
                     return [
-                        'source' => 'agence',
-                        'id' => $tarifAgence->id,
-                        'indice' => $indiceArrondi,
-                        'agence_nom' => optional($tarifAgence->agence)->nom,
-                        'montant_base' => round((float) $prixZoneAgence['montant_base'], 2, PHP_ROUND_HALF_UP),
-                        'pourcentage_prestation' => round((float) $prixZoneAgence['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
-                        'montant_prestation' => round((float) $prixZoneAgence['montant_prestation'], 2, PHP_ROUND_HALF_UP),
-                        'montant_expedition' => round((float) $prixZoneAgence['montant_expedition'], 2, PHP_ROUND_HALF_UP),
-
+                        'montant_base' => round((float) ($prixZoneAgence['montant_base'] ?? 0), 2, PHP_ROUND_HALF_UP),
+                        'pourcentage_prestation' => round((float) ($prixZoneAgence['pourcentage_prestation'] ?? 0), 2, PHP_ROUND_HALF_UP),
+                        'montant_prestation' => round((float) ($prixZoneAgence['montant_prestation'] ?? 0), 2, PHP_ROUND_HALF_UP),
+                        'montant_expedition' => round((float) ($prixZoneAgence['montant_expedition'] ?? 0), 2, PHP_ROUND_HALF_UP),
                     ];
                 }
             }
         }
 
-        // 2) Sinon on cherche un tarif de base
-        /*$tarifBase = TarifSimple::pourCriteres($zoneDestination, $modeExpedition, $indiceArrondi)->first();
-        if ($tarifBase) {
-            $prixZone = $tarifBase->getPrixPourZone($zoneDestination);
-            if ($prixZone) {
-                return [
-                    'source' => 'base',
-                    'id' => $tarifBase->id,
-                    'indice' => $indiceArrondi,
-                    'agence_nom' => null,
-                    'montant_base' => round((float) $prixZone['montant_base'], 2, PHP_ROUND_HALF_UP),
-                    'pourcentage_prestation' => round((float) $prixZone['pourcentage_prestation_base'], 2, PHP_ROUND_HALF_UP),
-                    'montant_prestation' => round((float) $prixZone['montant_prestation_base'], 2, PHP_ROUND_HALF_UP),
-                    'montant_expedition' => round((float) $prixZone['montant_expedition_base'], 2, PHP_ROUND_HALF_UP),
-                ];
-            }
-        }*/
+        // // 2) Sinon on cherche un tarif de base
+        // $tarifBase = TarifSimple::pourCriteres($zoneDestination, $typeExpedition, $indiceArrondi)->first();
+        // if ($tarifBase) {
+        //     $prixZone = $tarifBase->getPrixPourZone($zoneDestination);
+        //     if ($prixZone) {
+        //         return [
+        //             'source' => 'base',
+        //             'id' => $tarifBase->id,
+        //             'indice' => $indiceArrondi,
+        //             'agence_nom' => null,
+        //             'montant_base' => round((float) $prixZone['montant_base'], 2, PHP_ROUND_HALF_UP),
+        //             'pourcentage_prestation' => round((float) $prixZone['pourcentage_prestation'], 2, PHP_ROUND_HALF_UP),
+        //             'montant_prestation' => round((float) $prixZone['montant_prestation'], 2, PHP_ROUND_HALF_UP),
+        //             'montant_expedition' => round((float) $prixZone['montant_expedition'], 2, PHP_ROUND_HALF_UP),
+        //         ];
+        //     }
+        // }
 
         return null;
     }
@@ -163,14 +151,14 @@ class TarificationService
         // Chercher le tarif (agence si agence_id fourni, sinon base)
         $tarif = $this->trouverTarifPourColis(
             $zoneDestination->id,
-            $donnees['mode_expedition'] === 'groupage' ? ($donnees['type_colis'] ?? null) : null,
-            $donnees['mode_expedition'],
+            $donnees['type_expedition'],
             $donnees['poids'],
             $donnees['longueur'] ?? 0,
             $donnees['largeur'] ?? 0,
             $donnees['hauteur'] ?? 0,
             $donnees['agence_id'] ?? null,
             $donnees['category_id'] ?? null,
+            $donnees['is_livraison_domicile'] ?? false,
         );
 
         // Aucun tarif trouvé
@@ -178,7 +166,7 @@ class TarificationService
         $indiceArrondi = $this->arrondirIndice($indiceReference);
         if (!$tarif) {
             // Fallback groupage: utiliser le prix/kg de la catégorie si fourni
-            if (($donnees['mode_expedition'] ?? null) === TypeExpedition::GROUPAGE->value && !empty($donnees['category_id'])) {
+            if (($donnees['type_expedition'] ?? null) !== TypeExpedition::LD->value && !empty($donnees['category_id'])) {
                 $category = CategoryProduct::find($donnees['category_id']);
                 if ($category && $category->prix_kg !== null) {
                     $prixBase = (float) $category->prix_kg * (float) $donnees['poids'];
@@ -199,7 +187,7 @@ class TarificationService
                         'details' => [
                             'zone_destination' => $zoneDestination->nom,
                             'category_id' => $donnees['category_id'] ?? null,
-                            'mode_expedition' => $donnees['mode_expedition'],
+                            'type_expedition' => $donnees['type_expedition'],
                             'indice_calcule' => $indiceArrondi
                         ]
                     ];
@@ -211,7 +199,7 @@ class TarificationService
                     'details' => [
                         'zone_destination' => $zoneDestination->nom,
                         'type_colis' => $donnees['type_colis'] ?? null,
-                        'mode_expedition' => $donnees['mode_expedition'],
+                        'type_expedition' => $donnees['type_expedition'],
                         'indice_calcule' => $indiceArrondi
                     ]
                 ];
@@ -229,7 +217,7 @@ class TarificationService
         ];
 
         // Ajouter les dimensions uniquement pour mode simple
-        if (($donnees['mode_expedition'] ?? 'simple') === 'simple') {
+        if (($donnees['type_expedition'] ?? 'simple') === 'simple') {
             $detailsCalcul = array_merge($detailsCalcul, [
                 'volume_cm3' => ($donnees['longueur'] ?? 0) * ($donnees['largeur'] ?? 0) * ($donnees['hauteur'] ?? 0),
                 'volume_divise' => $this->calculerVolumeDivise($donnees['longueur'] ?? 0, $donnees['largeur'] ?? 0, $donnees['hauteur'] ?? 0),
@@ -243,9 +231,9 @@ class TarificationService
                 'devise' => 'FCFA',
                 'zone_destination' => $zoneDestination->nom,
                 'type_colis' => isset($donnees['type_colis']) && $donnees['type_colis'] ? TypeColis::from($donnees['type_colis'])->label() : null,
-                'mode_expedition' => TypeExpedition::from($donnees['mode_expedition'])->label(),
+                'type_expedition' => TypeExpedition::from($donnees['type_expedition'])->label(),
                 'poids_kg' => $donnees['poids'],
-                'dimensions_cm' => ($donnees['mode_expedition'] === 'simple') ? [
+                'dimensions_cm' => ($donnees['type_expedition'] === 'simple') ? [
                     'longueur' => $donnees['longueur'] ?? 0,
                     'largeur' => $donnees['largeur'] ?? 0,
                     'hauteur' => $donnees['hauteur'] ?? 0,

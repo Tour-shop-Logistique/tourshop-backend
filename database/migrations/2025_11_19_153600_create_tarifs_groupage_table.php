@@ -13,7 +13,7 @@ return new class extends Migration {
             $table->uuid('category_id')->nullable();
             $table->enum('type_expedition', [TypeExpedition::class]);
             $table->decimal('prix_unitaire', 12, 2)->nullable();
-            $table->json('prix_modes')->nullable();
+            $table->jsonb('prix_modes')->nullable();
             $table->boolean('actif')->default(true);
             $table->string('pays')->nullable();
             $table->uuid('backoffice_id')->nullable();

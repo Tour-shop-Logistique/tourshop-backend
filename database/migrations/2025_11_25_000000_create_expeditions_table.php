@@ -24,16 +24,19 @@ return new class extends Migration {
             $table->string('code_suivi_expedition')->unique()->nullable();
             $table->string('code_validation_reception')->nullable();
 
+            $table->json('expediteur');
+            $table->json('destinataire');
+
             // Localisation
-            $table->uuid('zone_depart_id')->nullable()->index();
+            $table->string('zone_depart_id')->nullable()->index();
             $table->string('pays_depart')->nullable();
-            $table->uuid('zone_destination_id')->nullable()->index();
+            $table->string('zone_destination_id')->nullable()->index();
             $table->string('pays_destination')->nullable();
 
             // Type et Statuts
             $table->string('type_expedition'); // Enum mapping: simple, groupage_afrique, groupage_ca, groupage_dhd
             $table->string('statut_expedition')->default('EN_ATTENTE');
-            $table->string('statut_paiement')->default('UNPAID');
+            $table->string('statut_paiement')->default('EN_ATTENTE');
 
             // Financier principal
             $table->decimal('montant_base', 12, 2)->default(0);
@@ -51,12 +54,12 @@ return new class extends Migration {
 
             // Options de service
             $table->boolean('is_enlevement_domicile')->default(false);
-            $table->json('coord_enlevement')->nullable();
+            $table->string('coord_enlevement')->nullable();
             $table->text('instructions_enlevement')->nullable();
             $table->decimal('distance_domicile_agence', 8, 2)->nullable();
 
             $table->boolean('is_livraison_domicile')->default(false);
-            $table->json('coord_livraison')->nullable();
+            $table->string('coord_livraison')->nullable();
             $table->text('instructions_livraison')->nullable();
 
             $table->string('delai_retrait')->nullable();
@@ -88,7 +91,7 @@ return new class extends Migration {
             $table->timestamps();
 
             // Foreign Keys (principales)
-            
+
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
         });

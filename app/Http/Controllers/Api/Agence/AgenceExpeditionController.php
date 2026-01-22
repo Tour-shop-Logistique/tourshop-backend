@@ -2,27 +2,26 @@
 
 namespace App\Http\Controllers\Api\Agence;
 
+use App\Enums\ExpeditionStatus;
+use App\Enums\StatutPaiement;
+use App\Enums\TypeExpedition;
+use App\Enums\UserType;
 use App\Http\Controllers\Controller;
-use App\Models\Expedition;
 use App\Models\Agence;
-use App\Models\TarifAgenceGroupage;
-use App\Models\User;
 use App\Models\Colis;
 use App\Models\ColisArticle;
-use App\Models\ContactExpedition;
+use App\Models\Expedition;
+use App\Models\TarifAgenceGroupage;
+use App\Models\User;
 use App\Services\ExpeditionTarificationService;
 use App\Services\ZoneService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\DB;
-use App\Enums\ExpeditionStatus;
-use App\Enums\TypeExpedition;
-use App\Enums\StatutPaiement;
-use App\Enums\UserType;
-use Illuminate\Support\Facades\Log;
 
 class AgenceExpeditionController extends Controller
 {
@@ -52,7 +51,8 @@ class AgenceExpeditionController extends Controller
             }
 
             $query = Expedition::pourAgence($agence->id)
-                ->with(['expediteurContact', 'destinataireContact', 'livreurEnlevement', 'livreurDeplacement', 'livreurLivraison', 'zoneDepart', 'zoneDestination']);
+                ->withLivreurs()
+                ->with('colis');
 
             // Filtrage par statut
             if ($request->has('statut_expedition') && $request->statut_expedition) {
@@ -76,19 +76,30 @@ class AgenceExpeditionController extends Controller
             if ($request->has('search') && $request->search) {
                 $search = $request->search;
                 $query->where(function ($q) use ($search) {
-                    $q->where('reference', 'like', "%{$search}%")
+                    $q
+                        ->where('reference', 'like', "%{$search}%")
                         ->orWhere('code_suivi_expedition', 'like', "%{$search}%");
                 });
             }
 
-            $expeditions = $query->orderBy('created_at', 'desc')->paginate(20);
+            $paginator = $query->orderBy('created_at', 'desc')->paginate(20);
+
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expeditions = collect($paginator->items())->map(function ($expedition) {
+                return $expedition->masquerIdsLivreurs();
+            });
 
             return response()->json([
                 'success' => true,
                 'message' => 'Liste des expéditions récupérée avec succès',
-                'expeditions' => $expeditions
+                'data' => $expeditions->values()->all(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur listing expéditions agence : ' . $e->getMessage());
             return response()->json([
@@ -117,38 +128,33 @@ class AgenceExpeditionController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'user_id' => 'nullable|uuid|exists:users,id',
+                // 'user_id' => 'nullable|uuid|exists:users,id',
                 'pays_depart' => ['required', 'string', 'max:150'],
                 'pays_destination' => ['required', 'string', 'max:150'],
                 'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
                 'is_paiement_credit' => ['nullable', 'boolean'],
                 'is_livraison_domicile' => ['nullable', 'boolean'],
                 'statut_paiement' => ['nullable', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, StatutPaiement::cases()))],
-
                 // Validation Expéditeur
                 'expediteur_nom_prenom' => ['required', 'string', 'max:255'],
                 'expediteur_telephone' => ['required', 'string', 'max:20'],
                 'expediteur_email' => ['nullable', 'email', 'max:255'],
                 'expediteur_adresse' => ['required', 'string', 'max:255'],
                 'expediteur_ville' => ['required', 'string', 'max:255'],
-                'expediteur_pays' => ['required', 'string', 'max:150'],
                 'expediteur_societe' => ['nullable', 'string', 'max:150'],
-                'expediteur_code_postal' => ['required', 'string', 'max:20'],
-                'expediteur_etat' => ['required', 'string', 'max:150'],
-                'expediteur_quartier' => ['required', 'string', 'max:255'],
-
-                // Validation Destinataire (obligatoire pour simple mais optionnel pour groupage)
-                'destinataire_nom_prenom' => ['nullable', 'string', 'max:255'],
-                'destinataire_telephone' => ['nullable', 'string', 'max:20'],
+                'expediteur_code_postal' => ['nullable', 'string', 'max:20'],
+                'expediteur_etat' => ['nullable', 'string', 'max:150'],
+                'expediteur_quartier' => ['nullable', 'string', 'max:255'],
+                // Validation Destinataire
+                'destinataire_nom_prenom' => ['required', 'string', 'max:255'],
+                'destinataire_telephone' => ['required', 'string', 'max:20'],
                 'destinataire_email' => ['nullable', 'email', 'max:255'],
-                'destinataire_adresse' => ['nullable', 'string', 'max:255'],
+                'destinataire_adresse' => ['required', 'string', 'max:255'],
                 'destinataire_ville' => ['required', 'string', 'max:255'],
-                'destinataire_pays' => ['required', 'string', 'max:150'],
                 'destinataire_societe' => ['nullable', 'string', 'max:150'],
                 'destinataire_code_postal' => ['nullable', 'string', 'max:20'],
                 'destinataire_etat' => ['nullable', 'string', 'max:150'],
                 'destinataire_quartier' => ['nullable', 'string', 'max:255'],
-
                 // Validation des colis
                 'colis' => ['required', 'array', 'min:1'],
                 'colis.*.code_colis' => ['required', 'string'],
@@ -158,9 +164,8 @@ class AgenceExpeditionController extends Controller
                 'colis.*.hauteur' => ['nullable', 'numeric', 'min:0'],
                 'colis.*.poids' => ['required', 'numeric', 'min:0'],
                 'colis.*.prix_emballage' => ['nullable', 'numeric', 'min:0'],
-
-                // Validation des articles dans chaque colis 
-                'colis.*.articles' => ['required', 'array', 'min:1'],
+                // Validation des articles dans chaque colis
+                'colis.*.articles' => ['nullable', 'array', 'min:1'],
                 'colis.*.articles.*' => ['uuid', 'exists:produits,id'],
             ]);
 
@@ -171,9 +176,8 @@ class AgenceExpeditionController extends Controller
             $validated = $validator->validated();
 
             // Vérifier que l'utilisateur (client) existe et est actif
-            if (isset($validated['user_id']) && $validated['user_id']) {
-                $client = User::where('id', $validated['user_id'])
-                    ->where('type', 'client')
+            if ($user->id) {
+                $client = User::where('id', $user->id)
                     ->where('actif', true)
                     ->first();
                 if (!$client) {
@@ -184,46 +188,49 @@ class AgenceExpeditionController extends Controller
             $zoneDepart = $this->zoneService->getZoneByCountry($validated['pays_depart']);
             $zoneDestination = $this->zoneService->getZoneByCountry($validated['pays_destination']);
 
-            // 1. Créer le contact Expéditeur
-            $expediteur = ContactExpedition::create([
-                'type_contact' => 'expediteur',
+            if (!$zoneDepart || !$zoneDestination) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Zone de départ ou de destination introuvable pour les pays spécifiés.'
+                ], 422);
+            }
+
+            // 1. Préparer les données JSON pour l'expéditeur
+            $expediteurData = [
                 'nom_prenom' => $validated['expediteur_nom_prenom'],
                 'telephone' => $validated['expediteur_telephone'],
                 'email' => $validated['expediteur_email'] ?? null,
                 'adresse' => $validated['expediteur_adresse'] ?? null,
                 'ville' => $validated['expediteur_ville'] ?? null,
-                'pays' => $validated['expediteur_pays'] ?? null,
                 'societe' => $validated['expediteur_societe'] ?? null,
                 'code_postal' => $validated['expediteur_code_postal'] ?? null,
                 'etat' => $validated['expediteur_etat'] ?? null,
                 'quartier' => $validated['expediteur_quartier'] ?? null,
-            ]);
+            ];
 
-            // 2. Créer le contact Destinataire
-            $destinataire = ContactExpedition::create([
-                'type_contact' => 'destinataire',
+            // 2. Préparer les données JSON pour le destinataire
+            $destinataireData = [
                 'nom_prenom' => $validated['destinataire_nom_prenom'],
                 'telephone' => $validated['destinataire_telephone'],
                 'email' => $validated['destinataire_email'] ?? null,
                 'adresse' => $validated['destinataire_adresse'] ?? null,
                 'ville' => $validated['destinataire_ville'] ?? null,
-                'pays' => $validated['destinataire_pays'] ?? null,
                 'societe' => $validated['destinataire_societe'] ?? null,
                 'code_postal' => $validated['destinataire_code_postal'] ?? null,
                 'etat' => $validated['destinataire_etat'] ?? null,
                 'quartier' => $validated['destinataire_quartier'] ?? null,
-            ]);
+            ];
 
-            // 3. Créer l'expédition    
+            // 3. Créer l'expédition
             $expeditionData = [
-                'user_id' => $validated['user_id'] ?? $user->id,
+                'user_id' => $user->id,
                 'agence_id' => $agence->id,
                 'zone_depart_id' => $zoneDepart->id,
                 'zone_destination_id' => $zoneDestination->id,
                 'pays_depart' => $validated['pays_depart'],
                 'pays_destination' => $validated['pays_destination'],
-                'expediteur_contact_id' => $expediteur->id,
-                'destinataire_contact_id' => $destinataire->id,
+                'expediteur' => $expediteurData,
+                'destinataire' => $destinataireData,
                 'type_expedition' => $validated['type_expedition'],
                 'is_paiement_credit' => $validated['is_paiement_credit'],
                 'is_livraison_domicile' => $validated['is_livraison_domicile'],
@@ -256,52 +263,58 @@ class AgenceExpeditionController extends Controller
                         }
                     }
 
-                    // Charger les articles avec leurs produits et catégories
-                    $colis->load('articles.produit.category');
+                    // // Charger les articles avec leurs produits et catégories
+                    // $colis->load('articles.produit.category');
 
                     // Calculer le prix_unitaire selon le type d'expédition
                     $prixUnitaire = null;
 
-                    if ($validated['type_expedition'] !== TypeExpedition::LD->value) {
+                    if ($validated['type_expedition'] !== TypeExpedition::LD) {
                         $paysDepart = strtolower(trim($validated['pays_depart']));
                         $paysDestination = strtolower(trim($validated['pays_destination']));
-                        $isCoteDivoireFrance = (str_contains($paysDepart, "ivoire") && str_contains($paysDestination, "france")) ||
-                            (str_contains($paysDepart, "france") && str_contains($paysDestination, "ivoire"));
+                        $isCoteDivoireFrance = (str_contains($paysDepart, 'ivoire') && str_contains($paysDestination, 'france')) ||
+                            (str_contains($paysDepart, 'france') && str_contains($paysDestination, 'ivoire'));
 
                         // GROUPAGE_DHD : Côte d'Ivoire ↔ France - utiliser prix_kg de la catégorie
-                        if ($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD->value && $isCoteDivoireFrance) {
+                        if ($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD && $isCoteDivoireFrance) {
                             $premierArticle = $colis->articles->first();
                             if ($premierArticle && $premierArticle->produit && $premierArticle->produit->category) {
                                 $prixUnitaire = $premierArticle->produit->category->prix_kg;
                             }
                         }
-                        // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
-                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE->value) {
-                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                                ->whereHas('tarifGroupage', function ($query) use ($validated, $paysDestination) {
-                                    $query->where('type_expedition', $validated['type_expedition'])
-                                        ->whereRaw('LOWER(pays) = ?', [$paysDestination]);
-                                })
-                                ->with('tarifGroupage')
-                                ->first();
 
-                            if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-                                $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
-                            }
-                        }
-                        // GROUPAGE_CA : Tarif général sans filtre de pays
-                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA->value) {
-                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                                ->whereHas('tarifGroupage', function ($query) use ($validated) {
-                                    $query->where('type_expedition', $validated['type_expedition']);
-                                })
-                                ->with('tarifGroupage')
-                                ->first();
+                        // // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
+                        // elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE) {
+                        //     $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                        //         ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
+                        //         ->with('tarifGroupage')
+                        //         ->actif()
+                        //         ->get()
+                        //         ->filter(function ($tag) use ($paysDestination) {
+                        //             // Utiliser directement le champ pays du tarif d'agence
+                        //             $paysTarif = strtolower(trim($tag->pays ?? ''));
+                        //             return !empty($paysTarif) &&
+                        //                 (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
+                        //         })
+                        //         ->first();
 
-                            if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-                                $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
-                            }
-                        }
+                        //     if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
+                        //         $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
+                        //     }
+                        // }
+                        // // GROUPAGE_CA : Tarif général sans filtre de pays
+                        // elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA) {
+                        //     $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                        //         ->whereHas('tarifGroupage', function ($query) use ($validated) {
+                        //             $query->where('type_expedition', $validated['type_expedition']);
+                        //         })
+                        //         ->with('tarifGroupage')
+                        //         ->first();
+
+                        //     if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
+                        //         $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
+                        //     }
+                        // }
 
                         // Mettre à jour le colis avec le prix_unitaire et prix_total
                         if ($prixUnitaire !== null) {
@@ -313,7 +326,7 @@ class AgenceExpeditionController extends Controller
                     }
 
                     // Si pas de désignation, générer à partir des produits
-                    if ($colis->designation == null) {
+                    if ($colis->designation == null || $colis->designation == '') {
                         $colis->update([
                             'designation' => $colis->articles->pluck('produit.designation')->implode(', '),
                         ]);
@@ -327,28 +340,31 @@ class AgenceExpeditionController extends Controller
                 $resultatTarif = $this->expeditionTarificationService->calculerTarifExpedition($expedition);
 
                 // Si le calcul a réussi, mettre à jour l'expédition avec les montants
-                if ($resultatTarif['success'] ?? false) {
+                if ($resultatTarif['success']) {
                     $tarif = $resultatTarif['tarif'];
                     $expedition->update([
                         'montant_base' => $tarif['montant_base'],
-                        'pourcentage_prestation' => $tarif['pourcentage_prestation'] ?? null,
+                        'pourcentage_prestation' => $tarif['pourcentage_prestation'],
                         'montant_prestation' => $tarif['montant_prestation'],
                         'montant_expedition' => $tarif['montant_expedition'],
+                        'frais_emballage' => $tarif['frais_emballage'],
                     ]);
+                } else {
+                    Log::warning("Calcul tarif échoué pour l'expédition " . $expedition->reference . ' : ' . ($resultatTarif['message'] ?? 'Erreur inconnue'));
                 }
             }
 
             DB::commit();
 
-            // Charger les relations pour la réponse
-            $expedition->load(['expediteurContact', 'destinataireContact']);
+            // Les données d'expéditeur et destinataire sont déjà dans les champs JSON
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Expédition créée avec succès',
                 'expedition' => $expedition
             ], 201);
-
         } catch (ValidationException $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'errors' => $e->errors()], 422);
@@ -357,7 +373,7 @@ class AgenceExpeditionController extends Controller
             Log::error('Erreur création expédition agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la création de l\'expédition',
+                'message' => "Erreur lors de la création de l'expédition",
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -380,24 +396,27 @@ class AgenceExpeditionController extends Controller
             }
 
             $expedition = Expedition::pourAgence($agence->id)
-                ->with(['client', 'expediteurContact', 'destinataireContact', 'livreur', 'zoneDepart', 'zoneDestination'])
+                ->with(['user', 'zoneDepart', 'zoneDestination'])
+                ->withLivreurs()
                 ->find($id);
 
             if (!$expedition) {
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
             }
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Expédition récupérée avec succès',
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur détails expédition agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération de l\'expédition',
+                'message' => "Erreur lors de la récupération de l'expédition",
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -414,6 +433,7 @@ class AgenceExpeditionController extends Controller
 
             $expedition = Expedition::pourAgence($agence->id)
                 ->where('statut_expedition', ExpeditionStatus::EN_ATTENTE)
+                ->withLivreurs()
                 ->find($id);
 
             if (!$expedition) {
@@ -425,12 +445,14 @@ class AgenceExpeditionController extends Controller
                 'date_expedition_depart' => now()
             ]);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Expédition acceptée avec succès',
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur acceptation expédition agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -456,6 +478,7 @@ class AgenceExpeditionController extends Controller
 
             $expedition = Expedition::pourAgence($agence->id)
                 ->where('statut_expedition', ExpeditionStatus::EN_ATTENTE)
+                ->withLivreurs()
                 ->find($id);
 
             if (!$expedition) {
@@ -467,12 +490,14 @@ class AgenceExpeditionController extends Controller
                 'description' => ($expedition->description ?? '') . ' | Refus: ' . $request->motif_refus
             ]);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Expédition refusée avec succès',
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur refus expédition agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -498,7 +523,9 @@ class AgenceExpeditionController extends Controller
             }
             $validated = $validator->validated();
 
-            $expedition = Expedition::pourAgence($agence->id)->find($id);
+            $expedition = Expedition::pourAgence($agence->id)
+                ->withLivreurs()
+                ->find($id);
             if (!$expedition) {
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
             }
@@ -513,12 +540,14 @@ class AgenceExpeditionController extends Controller
 
             $expedition->update($updateData);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Statut mis à jour avec succès',
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur mise à jour statut expédition agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -534,7 +563,9 @@ class AgenceExpeditionController extends Controller
             $user = $request->user();
             $agence = Agence::where('user_id', $user->id)->first();
 
-            $expedition = Expedition::pourAgence($agence->id)->find($id);
+            $expedition = Expedition::pourAgence($agence->id)
+                ->withLivreurs()
+                ->find($id);
             if (!$expedition) {
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
             }
@@ -558,12 +589,14 @@ class AgenceExpeditionController extends Controller
 
             $expedition->update($updateData);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Réception confirmée à l\'agence de départ',
+                'message' => "Réception confirmée à l'agence de départ",
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur confirmation réception agence départ : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -578,7 +611,9 @@ class AgenceExpeditionController extends Controller
         try {
             $user = request()->user();
             $agence = Agence::where('user_id', $user->id)->first();
-            $expedition = Expedition::pourAgence($agence->id)->find($id);
+            $expedition = Expedition::pourAgence($agence->id)
+                ->withLivreurs()
+                ->find($id);
 
             if (!$expedition) {
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
@@ -589,12 +624,14 @@ class AgenceExpeditionController extends Controller
                 'date_deplacement_entrepot' => now()
             ]);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Expédition en route vers l\'entrepôt',
+                'message' => "Expédition en route vers l'entrepôt",
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur expédition vers entrepôt : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -608,7 +645,8 @@ class AgenceExpeditionController extends Controller
     {
         try {
             // Note: Idéalement vérifier que l'utilisateur appartient à l'agence de destination
-            $expedition = Expedition::find($id);
+            $expedition = Expedition::withLivreurs()
+                ->find($id);
 
             if (!$expedition) {
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
@@ -619,12 +657,14 @@ class AgenceExpeditionController extends Controller
                 'date_reception_agence' => now()
             ]);
 
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Colis reçu à l\'agence de destination',
+                'message' => "Colis reçu à l'agence de destination",
                 'expedition' => $expedition
             ]);
-
         } catch (\Exception $e) {
             Log::error('Erreur confirmation réception agence destination : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -637,7 +677,8 @@ class AgenceExpeditionController extends Controller
     public function configurerLivraisonDomicile(Request $request, string $id): JsonResponse
     {
         try {
-            $expedition = Expedition::find($id);
+            $expedition = Expedition::withLivreurs()
+                ->find($id);
             if (!$expedition)
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
 
@@ -653,8 +694,10 @@ class AgenceExpeditionController extends Controller
                 'is_livraison_domicile' => true
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Livraison à domicile configurée', 'expedition' => $expedition]);
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
 
+            return response()->json(['success' => true, 'message' => 'Livraison à domicile configurée', 'expedition' => $expedition]);
         } catch (\Exception $e) {
             Log::error('Erreur configuration livraison domicile : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -667,7 +710,8 @@ class AgenceExpeditionController extends Controller
     public function preparerRetraitAgence(string $id): JsonResponse
     {
         try {
-            $expedition = Expedition::find($id);
+            $expedition = Expedition::withLivreurs()
+                ->find($id);
             if (!$expedition)
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
 
@@ -675,8 +719,10 @@ class AgenceExpeditionController extends Controller
                 'statut_expedition' => ExpeditionStatus::EN_ATTENTE_RETRAIT
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Prêt pour retrait en agence', 'expedition' => $expedition]);
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
 
+            return response()->json(['success' => true, 'message' => 'Prêt pour retrait en agence', 'expedition' => $expedition]);
         } catch (\Exception $e) {
             Log::error('Erreur préparation retrait agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
@@ -689,7 +735,8 @@ class AgenceExpeditionController extends Controller
     public function confirmerRetraitClient(string $id): JsonResponse
     {
         try {
-            $expedition = Expedition::find($id);
+            $expedition = Expedition::withLivreurs()
+                ->find($id);
             if (!$expedition)
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
 
@@ -699,8 +746,10 @@ class AgenceExpeditionController extends Controller
                 'code_validation_reception' => null
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Retrait confirmé', 'expedition' => $expedition]);
+            // Masquer les IDs des livreurs car les relations livreur sont chargées
+            $expedition->masquerIdsLivreurs();
 
+            return response()->json(['success' => true, 'message' => 'Retrait confirmé', 'expedition' => $expedition]);
         } catch (\Exception $e) {
             Log::error('Erreur confirmation retrait client : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);

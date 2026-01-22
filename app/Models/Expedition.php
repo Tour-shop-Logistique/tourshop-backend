@@ -34,12 +34,12 @@ class Expedition extends Model
         // Expediteur
         'zone_depart_id',
         'pays_depart',
-        'expediteur_contact_id',
+        'expediteur', // JSON
 
         // Destinataire
         'zone_destination_id',
         'pays_destination',
-        'destinataire_contact_id',
+        'destinataire', // JSON
 
         // Mode d'expédition
         'type_expedition', // TypeExpedition::class
@@ -121,10 +121,8 @@ class Expedition extends Model
 
         // Booléens et Coordonnées
         'is_enlevement_domicile' => 'boolean',
-        'coord_enlevement' => 'array',
         'distance_domicile_agence' => 'decimal:2',
         'is_livraison_domicile' => 'boolean',
-        'coord_livraison' => 'array',
         'is_retard_retrait' => 'boolean',
         'is_paiement_credit' => 'boolean',
 
@@ -152,6 +150,10 @@ class Expedition extends Model
         'commission_agence_livraison' => 'decimal:2',
         'commission_agence_retard' => 'decimal:2',
         'commission_tourshop_retard' => 'decimal:2',
+
+        // Contacts JSON
+        'expediteur' => 'array',
+        'destinataire' => 'array',
     ];
 
 
@@ -170,39 +172,30 @@ class Expedition extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function expediteurContact(): BelongsTo
-    {
-        return $this->belongsTo(ContactExpedition::class, 'expediteur_contact_id', 'contact_expedition_id');
-    }
-
-    public function destinataireContact(): BelongsTo
-    {
-        return $this->belongsTo(ContactExpedition::class, 'destinataire_contact_id', 'contact_expedition_id');
-    }
 
     public function livreurEnlevement(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'livreur_enlevement_id', 'user_id');
+        return $this->belongsTo(User::class, 'livreur_enlevement_id', 'id');
     }
 
     public function livreurDeplacement(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'livreur_deplacement_id', 'user_id');
+        return $this->belongsTo(User::class, 'livreur_deplacement_id', 'id');
     }
 
     public function livreurLivraison(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'livreur_livraison_id', 'user_id');
+        return $this->belongsTo(User::class, 'livreur_livraison_id', 'id');
     }
 
     public function zoneDepart(): BelongsTo
     {
-        return $this->belongsTo(Zone::class, 'zone_depart_id', 'zone_id');
+        return $this->belongsTo(Zone::class, 'zone_depart_id', 'id');
     }
 
     public function zoneDestination(): BelongsTo
     {
-        return $this->belongsTo(Zone::class, 'zone_destination_id', 'zone_id');
+        return $this->belongsTo(Zone::class, 'zone_destination_id', 'id');
     }
 
 
@@ -215,6 +208,11 @@ class Expedition extends Model
     public function getVolumeTotal(): float
     {
         return (float) $this->colis()->sum('volume');
+    }
+
+    public function getFraisEmballageTotal(): float
+    {
+        return (float) $this->colis()->sum('prix_emballage');
     }
 
 
@@ -270,6 +268,28 @@ class Expedition extends Model
     public function scopePourDestinataire($query, $destinataireId)
     {
         return $query->where('destinataire_id', $destinataireId);
+    }
+
+    // Scope pour charger les relations livreur
+    public function scopeWithLivreurs($query)
+    {
+        return $query->with(['livreurEnlevement', 'livreurDeplacement', 'livreurLivraison']);
+    }
+
+    // Méthode pour charger les relations livreur (méthode d'instance)
+    public function chargerLivreurs()
+    {
+        return $this->load(['livreurEnlevement', 'livreurDeplacement', 'livreurLivraison']);
+    }
+
+    // Méthode pour masquer les IDs des livreurs (car les relations sont chargées)
+    public function masquerIdsLivreurs()
+    {
+        return $this->makeHidden([
+            'livreur_enlevement_id',
+            'livreur_deplacement_id',
+            'livreur_livraison_id'
+        ]);
     }
 
     // Méthode pour générer une référence unique

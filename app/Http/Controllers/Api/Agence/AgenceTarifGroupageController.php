@@ -110,8 +110,10 @@ class AgenceTarifGroupageController extends Controller
             $tarif = TarifAgenceGroupage::create([
                 'agence_id' => $agence->id,
                 'tarif_groupage_id' => $tarifGroupage->id,
+                'type_expedition' => $tarifGroupage->type_expedition,
                 'category_id' => $tarifGroupage->category_id,
                 'prix_modes' => $request->prix_modes,
+                'pays' => $tarifGroupage->pays,
             ]);
 
             return response()->json(['success' => true, 'message' => 'Tarif agence groupage créé.', 'tarif' => $tarif], 201);

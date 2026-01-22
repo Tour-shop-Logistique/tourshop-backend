@@ -19,9 +19,9 @@ return new class extends Migration
             $table->enum('type_expedition', [TypeExpedition::class])->default(TypeExpedition::LD);
             $table->decimal('indice', 5, 1);
             $table->string('pays')->nullable();
-            // Prix par zone (JSON array)
+            // Prix par zone (JSONB array)
             // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->json('prix_zones');
+            $table->jsonb('prix_zones');
 
             // Statut
             $table->boolean('actif')->default(true);

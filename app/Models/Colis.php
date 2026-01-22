@@ -19,7 +19,6 @@ class Colis extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id',
         'code_colis',
         'expedition_id',
         'designation',

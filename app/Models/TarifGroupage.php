@@ -70,4 +70,25 @@ class TarifGroupage extends Model
     {
         return $query->where('actif', true);
     }
+
+    /**
+     * Obtenir le prix pour un mode spécifique
+     * 
+     * @param string $mode Le mode de transport (avion, bateau, afrique, etc.)
+     * @return array|null Le prix pour le mode ou null si non trouvé
+     */
+    public function getPrixPourMode(string $mode)
+    {
+        if (!$this->prix_modes) {
+            return null;
+        }
+
+        foreach ($this->prix_modes as $prixMode) {
+            if ($prixMode['mode'] === $mode) {
+                return $prixMode;
+            }
+        }
+
+        return null;
+    }
 }

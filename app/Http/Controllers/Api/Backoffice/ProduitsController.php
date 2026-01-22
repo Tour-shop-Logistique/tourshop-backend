@@ -57,10 +57,10 @@ class ProduitsController extends Controller
     public function list(Request $request)
     {
         try {
-            $user = $request->user();
-            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
-                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
-            }
+            // $user = $request->user();
+            // if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
+            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            // }
 
             // $query = Produit::query()->with('category');
             $query = Produit::query();

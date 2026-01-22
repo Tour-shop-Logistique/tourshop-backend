@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('zones', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('nom');
-            $table->json('pays');
+            $table->jsonb('pays');
             $table->boolean('actif')->default(true);
             $table->timestamps();
         });

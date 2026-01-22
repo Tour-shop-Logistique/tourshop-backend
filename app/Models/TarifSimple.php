@@ -76,18 +76,20 @@ class TarifSimple extends Model
     /**
      * Scope pour rechercher par critères
      */
-    public function scopePourCriteres($query, $zoneDestination, $typeExpedition, $indiceTrancheArrondi)
+    public function scopePourCriteres($query, $zoneDestination, $indiceTrancheArrondi)
     {
-        $query->where('indice', $indiceTrancheArrondi)
-            ->where('type_expedition', $typeExpedition)
+        return $query->where('indice', $indiceTrancheArrondi)
             ->where('actif', true);
-
-        // Filtrer par zone dans le JSON prix_zones
-        $query->whereJsonContains('prix_zones', function ($zone) use ($zoneDestination) {
-            return $zone['zone_destination_id'] === $zoneDestination;
-        });
-
-        return $query;
+            // // Vérifier que le tarif contient la zone demandée dans son prix_zones
+            // // Pour PostgreSQL : utiliser jsonb_array_elements pour parcourir le tableau JSONB
+            // ->whereRaw(
+            //     "EXISTS (
+            //         SELECT 1 
+            //         FROM jsonb_array_elements(prix_zones) AS zone
+            //         WHERE zone->>'zone_destination_id' = ?
+            //     )",
+            //     [$zoneDestination]
+            // );
     }
 
     /**
