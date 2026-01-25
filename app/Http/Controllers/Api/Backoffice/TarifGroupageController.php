@@ -22,21 +22,19 @@ class TarifGroupageController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $query = TarifGroupage::query()->with('category');
-
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->category_id);
-            }
+            $query = TarifGroupage::query();
 
             if ($user->type === UserType::BACKOFFICE) {
                 $query->where('backoffice_id', $user->backoffice_id);
             }
 
             if ($user->type === UserType::AGENCE) {
-                $query->where('pays', $user->agence->pays);
+                $query->whereHas('backoffice', function ($qr) use ($user) {
+                    $qr->where('pays', $user->agence->pays);
+                });
             }
 
-            $tarifs = $query->with('category:id,nom,prix_kg,pays')->get();
+            $tarifs = $query->with('category:id,nom')->get();
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
             Log::error('Erreur listing tarifs groupage : ' . $e->getMessage());
@@ -55,10 +53,11 @@ class TarifGroupageController extends Controller
             $request->validate([
                 'category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
                 'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
-                'prix_unitaire' => ['nullable', 'numeric', 'min:1'],
+                // 'prix_unitaire' => ['nullable', 'numeric', 'min:1'],
                 'pays' => ['nullable', 'string'],
                 'prix_modes' => ['required', 'array', 'min:1'],
                 'prix_modes.*.mode' => ['nullable', 'string'],
+                'prix_modes.*.ligne' => ['nullable', 'string'],
                 'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
                 'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
@@ -91,7 +90,7 @@ class TarifGroupageController extends Controller
             $tarif = TarifGroupage::create([
                 'category_id' => $request->category_id,
                 'type_expedition' => $request->type_expedition,
-                'prix_unitaire' => $request->prix_unitaire,
+                'prix_unitaire' => 0,
                 'prix_modes' => $request->prix_modes,
                 'pays' => $request->pays ?? $user->backoffice->pays,
                 'backoffice_id' => $user->backoffice->id,
@@ -119,7 +118,7 @@ class TarifGroupageController extends Controller
             }
 
             $request->validate([
-                'prix_unitaire' => ['sometimes', 'numeric', 'min:1'],
+                // 'prix_unitaire' => ['sometimes', 'numeric', 'min:1'],
                 'pays' => ['sometimes', 'string'],
                 'prix_modes' => ['sometimes', 'array', 'min:1'],
                 'prix_modes.*.mode' => ['sometimes', 'string'],
@@ -127,7 +126,7 @@ class TarifGroupageController extends Controller
                 'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            $tarif->update($request->only(['prix_unitaire', 'pays', 'prix_modes']));
+            $tarif->update($request->only(['pays', 'prix_modes']));
 
             return response()->json(['success' => true, 'message' => 'Tarif groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class Colis extends Model
@@ -21,7 +20,9 @@ class Colis extends Model
     protected $fillable = [
         'code_colis',
         'expedition_id',
+        'category_id',
         'designation',
+        'articles',
         'photo',
         'poids',
         'longueur',
@@ -34,6 +35,7 @@ class Colis extends Model
     ];
 
     protected $casts = [
+        'articles' => 'array',
         'poids' => 'decimal:2',
         'longueur' => 'decimal:2',
         'largeur' => 'decimal:2',
@@ -49,9 +51,9 @@ class Colis extends Model
         return $this->belongsTo(Expedition::class, 'expedition_id');
     }
 
-    public function articles(): HasMany
+    public function category(): BelongsTo
     {
-        return $this->hasMany(ColisArticle::class, 'colis_id');
+        return $this->belongsTo(CategoryProduct::class, 'category_id');
     }
 
     protected static function boot()

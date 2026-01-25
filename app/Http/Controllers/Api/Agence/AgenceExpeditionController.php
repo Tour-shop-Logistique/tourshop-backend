@@ -158,6 +158,7 @@ class AgenceExpeditionController extends Controller
                 // Validation des colis
                 'colis' => ['required', 'array', 'min:1'],
                 'colis.*.code_colis' => ['required', 'string'],
+                'colis.*.category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
                 'colis.*.designation' => ['nullable', 'string'],
                 'colis.*.longueur' => ['nullable', 'numeric', 'min:0'],
                 'colis.*.largeur' => ['nullable', 'numeric', 'min:0'],
@@ -166,7 +167,7 @@ class AgenceExpeditionController extends Controller
                 'colis.*.prix_emballage' => ['nullable', 'numeric', 'min:0'],
                 // Validation des articles dans chaque colis
                 'colis.*.articles' => ['nullable', 'array', 'min:1'],
-                'colis.*.articles.*' => ['uuid', 'exists:produits,id'],
+                'colis.*.articles.*' => ['string'],
             ]);
 
             if ($validator->fails()) {
@@ -247,8 +248,10 @@ class AgenceExpeditionController extends Controller
                     // Créer le colis
                     $colis = Colis::create([
                         'expedition_id' => $expedition->id,
+                        'category_id' => $colisData['category_id'] ?? null,
                         'code_colis' => $colisData['code_colis'],
                         'designation' => $colisData['designation'] ?? null,
+                        'articles' => $colisData['articles'] ?? null,
                         'poids' => $colisData['poids'],
                         'longueur' => $colisData['longueur'],
                         'largeur' => $colisData['largeur'],
@@ -256,65 +259,56 @@ class AgenceExpeditionController extends Controller
                         'prix_emballage' => $colisData['prix_emballage'],
                     ]);
 
-                    // Créer les articles du colis
-                    if (!empty($colisData['articles'])) {
-                        foreach ($colisData['articles'] as $articleData) {
-                            ColisArticle::create(['colis_id' => $colis->id, 'produit_id' => $articleData]);
-                        }
-                    }
-
-                    // // Charger les articles avec leurs produits et catégories
-                    // $colis->load('articles.produit.category');
-
                     // Calculer le prix_unitaire selon le type d'expédition
                     $prixUnitaire = null;
 
                     if ($validated['type_expedition'] !== TypeExpedition::LD) {
                         $paysDepart = strtolower(trim($validated['pays_depart']));
                         $paysDestination = strtolower(trim($validated['pays_destination']));
+                        $villeDestination = strtolower(trim($validated['destinataire_ville']));
                         $isCoteDivoireFrance = (str_contains($paysDepart, 'ivoire') && str_contains($paysDestination, 'france')) ||
                             (str_contains($paysDepart, 'france') && str_contains($paysDestination, 'ivoire'));
 
                         // GROUPAGE_DHD : Côte d'Ivoire ↔ France - utiliser prix_kg de la catégorie
                         if ($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD && $isCoteDivoireFrance) {
-                            $premierArticle = $colis->articles->first();
-                            if ($premierArticle && $premierArticle->produit && $premierArticle->produit->category) {
-                                $prixUnitaire = $premierArticle->produit->category->prix_kg;
+                            $category = $colis->category();
+                            if ($category) {
+                                $prixLigne = $category->getPrixPourLigne($villeDestination);
+                                $prixUnitaire = ($prixLigne['prix'] ?? 0);
                             }
                         }
 
-                        // // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
-                        // elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE) {
-                        //     $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                        //         ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
-                        //         ->with('tarifGroupage')
-                        //         ->actif()
-                        //         ->get()
-                        //         ->filter(function ($tag) use ($paysDestination) {
-                        //             // Utiliser directement le champ pays du tarif d'agence
-                        //             $paysTarif = strtolower(trim($tag->pays ?? ''));
-                        //             return !empty($paysTarif) &&
-                        //                 (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
-                        //         })
-                        //         ->first();
+                        // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
+                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE) {
+                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                                ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
+                                ->with('tarifGroupage')
+                                ->actif()
+                                ->get()
+                                ->filter(function ($tag) use ($paysDestination) {
+                                    $paysTarif = strtolower(trim($tag->pays ?? ''));
+                                    return !empty($paysTarif) &&
+                                        (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
+                                })
+                                ->first();
+                            if ($tarifAgenceGroupage) {
+                                $prixMode = $tarifAgenceGroupage->getPrixPourMode('afrique');
+                                $prixUnitaire = ($prixMode['montant_base'] ?? 0);
+                            }
+                        }
 
-                        //     if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-                        //         $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
-                        //     }
-                        // }
-                        // // GROUPAGE_CA : Tarif général sans filtre de pays
-                        // elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA) {
-                        //     $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                        //         ->whereHas('tarifGroupage', function ($query) use ($validated) {
-                        //             $query->where('type_expedition', $validated['type_expedition']);
-                        //         })
-                        //         ->with('tarifGroupage')
-                        //         ->first();
-
-                        //     if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-                        //         $prixUnitaire = $tarifAgenceGroupage->tarifGroupage->prix_unitaire;
-                        //     }
-                        // }
+                        // GROUPAGE_CA : Tarif général sans filtre de pays
+                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA) {
+                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                                ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                                ->with('tarifGroupage')
+                                ->actif()
+                                ->first();
+                            if ($tarifAgenceGroupage) {
+                                $prixMode = $tarifAgenceGroupage->getPrixPourMode('colis');
+                                $prixUnitaire = ($prixMode['montant_base'] ?? 0);
+                            }
+                        }
 
                         // Mettre à jour le colis avec le prix_unitaire et prix_total
                         if ($prixUnitaire !== null) {

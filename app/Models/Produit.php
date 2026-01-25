@@ -42,6 +42,11 @@ class Produit extends Model
         return $this->belongsTo(CategoryProduct::class, 'category_id');
     }
 
+    public function backoffice(): BelongsTo
+    {
+        return $this->belongsTo(Backoffice::class, 'backoffice_id');
+    }
+
     public function scopeActif($query)
     {
         return $query->where('actif', true);

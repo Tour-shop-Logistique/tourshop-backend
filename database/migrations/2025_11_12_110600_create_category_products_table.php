@@ -11,8 +11,8 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->string('nom', 150);
             $table->boolean('actif')->default(true);
-            $table->string('pays')->nullable();
-            $table->decimal('prix_kg', 12, 2);
+            // $table->string('pays')->nullable();
+            // $table->jsonb('prix_kg')->nullable();
             $table->uuid('backoffice_id')->nullable();
             $table->timestamps();
 

@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->uuid('expedition_id');
             $table->string('code_colis');
             $table->string('designation')->nullable();
+            $table->jsonb('articles')->nullable();
             $table->string('photo')->nullable();
             $table->decimal('longueur', 10, 2)->nullable()->comment('en cm');
             $table->decimal('largeur', 10, 2)->nullable()->comment('en cm');

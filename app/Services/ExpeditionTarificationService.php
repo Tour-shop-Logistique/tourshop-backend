@@ -174,7 +174,6 @@ class ExpeditionTarificationService
                 ->actif()
                 ->get()
                 ->filter(function ($tag) use ($paysDestination) {
-                    // Utiliser directement le champ pays du tarif d'agence
                     $paysTarif = strtolower(trim($tag->pays ?? ''));
                     return !empty($paysTarif) &&
                         (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
@@ -185,14 +184,11 @@ class ExpeditionTarificationService
         // Étape 3.2 : Si un tarif d'agence existe, utiliser son tarif groupage associé
         if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
             $tarifGroupage = $tarifAgenceGroupage->tarifGroupage;
-            // Priorité : utiliser le prix_modes de l'agence s'il existe
             $prixMode = $tarifAgenceGroupage->getPrixPourMode('afrique');
-            // Si pas de prix_modes personnalisé pour l'agence, utiliser celui du tarif de base
             if (!$prixMode) {
                 $prixMode = $tarifGroupage->getPrixPourMode('afrique');
             }
         } else {
-            // Pas de tarif d'agence trouvé : retourner une erreur
             return [
                 'success' => false,
                 'message' => "Aucun tarif d'agence groupage trouvé pour le pays de destination : {$paysDestination}",
@@ -276,14 +272,11 @@ class ExpeditionTarificationService
         // Étape 2.2 : Si un tarif d'agence existe, utiliser son tarif groupage associé
         if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
             $tarifGroupage = $tarifAgenceGroupage->tarifGroupage;
-            // Priorité : utiliser le prix_modes de l'agence s'il existe pour le mode "colis"
             $prixMode = $tarifAgenceGroupage->getPrixPourMode('colis');
-            // Si pas de prix_modes personnalisé pour l'agence, utiliser celui du tarif de base
             if (!$prixMode) {
                 $prixMode = $tarifGroupage->getPrixPourMode('colis');
             }
         } else {
-            // Pas de tarif d'agence trouvé : retourner une erreur
             return [
                 'success' => false,
                 'message' => "Aucun tarif d'agence groupage CA trouvé",

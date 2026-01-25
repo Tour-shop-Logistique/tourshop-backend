@@ -24,8 +24,8 @@ return new class extends Migration {
             $table->string('code_suivi_expedition')->unique()->nullable();
             $table->string('code_validation_reception')->nullable();
 
-            $table->json('expediteur');
-            $table->json('destinataire');
+            $table->jsonb('expediteur');
+            $table->jsonb('destinataire');
 
             // Localisation
             $table->string('zone_depart_id')->nullable()->index();

@@ -14,6 +14,42 @@ use Illuminate\Validation\Rule;
 
 class ProduitsController extends Controller
 {
+    public function list(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            $query = Produit::query()->with('category:id,nom');
+
+
+            if ($user->type === UserType::BACKOFFICE) {
+                $query->where('backoffice_id', $user->backoffice_id);
+            }
+
+            if ($user->type === UserType::AGENCE) {
+                $query->whereHas('category', function ($qr) use ($user) {
+                    $qr->where('pays', $user->agence->pays);
+                });
+            }
+
+            if ($request->filled('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
+
+            if ($request->has('pays')) {
+                $query->whereHas('category', function ($qr) use ($request) {
+                    $qr->where('pays', $request->pays);
+                });
+            }
+
+            $products = $query->orderBy('designation')->get();
+            return response()->json(['success' => true, 'products' => $products]);
+        } catch (Exception $e) {
+            Log::error('Erreur listing produits groupage : ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
+        }
+    }
+
     public function add(Request $request)
     {
         try {
@@ -26,17 +62,14 @@ class ProduitsController extends Controller
                 'category_id' => ['required', 'uuid', 'exists:category_products,id'],
                 'designation' => ['required', 'string', 'max:150'],
                 'reference' => [
-                    'required', 'string', 'max:50',
+                    'required',
+                    'string',
+                    'max:50',
                     Rule::unique('produits', 'reference')->where(function ($q) use ($user) {
                         return $q->where('backoffice_id', $user->backoffice_id);
                     }),
                 ],
             ]);
-
-            $category = CategoryProduct::find($request->category_id);
-            if ($user->type === UserType::BACKOFFICE && $category->backoffice_id !== $user->backoffice_id) {
-                return response()->json(['success' => false, 'message' => 'Cette catégorie n\'appartient pas à votre backoffice.'], 403);
-            }
 
             $product = Produit::create([
                 'category_id' => $request->category_id,
@@ -50,28 +83,6 @@ class ProduitsController extends Controller
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
             Log::error('Erreur ajout produit groupage : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
-        }
-    }
-
-    public function list(Request $request)
-    {
-        try {
-            // $user = $request->user();
-            // if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
-            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
-            // }
-
-            // $query = Produit::query()->with('category');
-            $query = Produit::query();
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->category_id);
-            }
-
-            $products = $query->orderBy('designation')->get();
-            return response()->json(['success' => true, 'products' => $products]);
-        } catch (Exception $e) {
-            Log::error('Erreur listing produits groupage : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
         }
     }
@@ -91,7 +102,9 @@ class ProduitsController extends Controller
             $request->validate([
                 'designation' => ['sometimes', 'string', 'max:150'],
                 'reference' => [
-                    'sometimes', 'string', 'max:50',
+                    'sometimes',
+                    'string',
+                    'max:50',
                     Rule::unique('produits', 'reference')
                         ->ignore($product->id)
                         ->where(function ($q) use ($user) {
@@ -113,13 +126,13 @@ class ProduitsController extends Controller
 
     public function show(Request $request, Produit $product)
     {
-         try {
+        try {
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
-            
-             if ($user->type === UserType::BACKOFFICE && $product->category->backoffice_id !== $user->backoffice_id) {
+
+            if ($user->type === UserType::BACKOFFICE && $product->category->backoffice_id !== $user->backoffice_id) {
                 return response()->json(['success' => false, 'message' => 'Ce produit n\'appartient pas à votre backoffice.'], 403);
             }
 

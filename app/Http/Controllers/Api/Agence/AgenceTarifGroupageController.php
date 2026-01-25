@@ -39,12 +39,7 @@ class AgenceTarifGroupageController extends Controller
                 $query->where('category_id', $request->category_id);
             }
 
-            $tarifs = $query->with([
-                'category:id,nom',
-                'tarifGroupage' => function ($query) {
-                    $query->select('id', 'type_expedition', 'prix_unitaire', 'pays');
-                }
-            ])->get();
+            $tarifs = $query->with(['category:id,nom'])->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {

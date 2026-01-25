@@ -16,13 +16,19 @@ class CategoryProductController extends Controller
     {
         try {
             $user = $request->user();
-            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
-                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
-            }
 
             $query = CategoryProduct::query();
+
             if ($user->type === UserType::BACKOFFICE) {
                 $query->where('backoffice_id', $user->backoffice_id);
+            }
+
+            if ($user->type === UserType::AGENCE) {
+                $query->where('pays', $user->agence->pays);
+            }
+
+            if ($request->has('pays')) {
+                $query->where('pays', $request->pays);
             }
 
             $categories = $query->orderBy('nom')->get();
@@ -43,12 +49,14 @@ class CategoryProductController extends Controller
 
             $request->validate([
                 'nom' => ['required', 'string', 'max:150'],
-                'prix_kg' => ['required', 'numeric', 'min:0'],
+                // 'prix_kg' => ['required', 'array'],
+                // 'prix_kg.*.ligne' => ['required', 'string'],
+                // 'prix_kg.*.prix' => ['required', 'numeric', 'min:0'],
             ]);
 
             $category = CategoryProduct::create([
                 'nom' => $request->nom,
-                'prix_kg' => $request->prix_kg,
+                // 'prix_kg' => $request->prix_kg,
                 'pays' => $user->backoffice->pays ?? null,
                 'backoffice_id' => $user->backoffice->id ?? null,
             ]);
@@ -75,10 +83,12 @@ class CategoryProductController extends Controller
 
             $request->validate([
                 'nom' => ['sometimes', 'string', 'max:150'],
-                'prix_kg' => ['sometimes', 'numeric', 'min:0'],
+                // 'prix_kg' => ['sometimes', 'array'],
+                // 'prix_kg.*.ligne' => ['required_with:prix_kg', 'string'],
+                // 'prix_kg.*.prix' => ['required_with:prix_kg', 'numeric', 'min:0'],
             ]);
 
-            $category->update($request->only(['nom', 'prix_kg']));
+            $category->update($request->only(['nom']));
             return response()->json(['success' => true, 'message' => 'Catégorie mise à jour.', 'category' => $category]);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);

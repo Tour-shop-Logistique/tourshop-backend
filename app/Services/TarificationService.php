@@ -148,39 +148,78 @@ class TarificationService
             throw new \Exception('Zone non trouvée pour un ou plusieurs pays.');
         }
 
+        // Calculer l'indice de référence (max entre poids et volume/5000)
+        $indiceReference = $this->determinerIndiceReference(
+            $donnees['poids'],
+            $donnees['longueur'] ?? 0,
+            $donnees['largeur'] ?? 0,
+            $donnees['hauteur'] ?? 0
+        );
+        $indiceArrondi = $this->arrondirIndice($indiceReference);
+
         // Chercher le tarif (agence si agence_id fourni, sinon base)
         $tarif = $this->trouverTarifPourColis(
             $zoneDestination->id,
             $donnees['type_expedition'],
-            $donnees['poids'],
-            $donnees['longueur'] ?? 0,
-            $donnees['largeur'] ?? 0,
-            $donnees['hauteur'] ?? 0,
+            (float) $donnees['poids'],
             $donnees['agence_id'] ?? null,
             $donnees['category_id'] ?? null,
             $donnees['is_livraison_domicile'] ?? false,
+            $indiceArrondi
         );
 
-        // Aucun tarif trouvé
-        $indiceReference = $this->determinerIndiceReference($donnees['poids'], $donnees['longueur'] ?? 0, $donnees['largeur'] ?? 0, $donnees['hauteur'] ?? 0);
-        $indiceArrondi = $this->arrondirIndice($indiceReference);
         if (!$tarif) {
             // Fallback groupage: utiliser le prix/kg de la catégorie si fourni
             if (($donnees['type_expedition'] ?? null) !== TypeExpedition::LD->value && !empty($donnees['category_id'])) {
                 $category = CategoryProduct::find($donnees['category_id']);
-                if ($category && $category->prix_kg !== null) {
-                    $prixBase = (float) $category->prix_kg * (float) $donnees['poids'];
-                    $tarif = [
-                        'source' => 'category_prix_kg',
-                        'id' => $category->id,
-                        'indice' => $indiceArrondi,
-                        'agence_nom' => null,
-                        'montant_base' => round($prixBase, 2, PHP_ROUND_HALF_UP),
-                        'pourcentage_prestation' => 0.0,
-                        'montant_prestation' => 0.0,
-                        'montant_expedition' => round($prixBase, 2, PHP_ROUND_HALF_UP),
-                    ];
-                } else {
+                if ($category && !empty($category->prix_kg)) {
+                    $prixKg = 0;
+                    $villeArrivee = strtolower(trim($donnees['pays_arrivee'] ?? '')); // Par défaut on check le pays si pas de ville
+
+                    // Si une ville est fournie explicitement, on l'utilise comme ligne
+                    if (!empty($donnees['ville_arrivee'])) {
+                        $villeArrivee = strtolower(trim($donnees['ville_arrivee']));
+                    }
+
+                    // Recherche du prix correspondant à la ligne (ville ou pays)
+                    $prixTrouve = false;
+                    if (is_array($category->prix_kg)) {
+                        foreach ($category->prix_kg as $item) {
+                            if (strtolower(trim($item['ligne'] ?? '')) === $villeArrivee) {
+                                $prixKg = (float) ($item['prix'] ?? 0);
+                                $prixTrouve = true;
+                                break;
+                            }
+                        }
+
+                        // Fallback sur "autres" si non trouvé
+                        if (!$prixTrouve) {
+                            foreach ($category->prix_kg as $item) {
+                                if (strtolower(trim($item['ligne'] ?? '')) === 'autres') {
+                                    $prixKg = (float) ($item['prix'] ?? 0);
+                                    $prixTrouve = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if ($prixTrouve) {
+                        $prixBase = $prixKg * (float) $donnees['poids'];
+                        $tarif = [
+                            'source' => 'category_prix_kg',
+                            'id' => $category->id,
+                            'indice' => $indiceArrondi,
+                            'agence_nom' => null,
+                            'montant_base' => round($prixBase, 2, PHP_ROUND_HALF_UP),
+                            'pourcentage_prestation' => 0.0,
+                            'montant_prestation' => 0.0,
+                            'montant_expedition' => round($prixBase, 2, PHP_ROUND_HALF_UP),
+                        ];
+                    }
+                }
+
+                if (!$tarif) {
                     return [
                         'success' => false,
                         'message' => 'Aucun tarif par intervalle et aucun prix/kg de catégorie disponible.',

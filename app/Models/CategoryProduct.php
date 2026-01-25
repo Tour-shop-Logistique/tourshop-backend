@@ -29,13 +29,13 @@ class CategoryProduct extends Model
     protected $fillable = [
         'nom',
         'actif',
-        'pays',
+        // 'pays',
         'backoffice_id',
-        'prix_kg',
+        // 'prix_kg',
     ];
 
     protected $casts = [
-        'prix_kg' => 'decimal:2',
+        // 'prix_kg' => 'array',
         'actif' => 'boolean',
     ];
 
@@ -57,5 +57,20 @@ class CategoryProduct extends Model
     public function scopeActif($query)
     {
         return $query->where('actif', true);
+    }
+
+    public function getPrixPourLigne(string $ligne)
+    {
+        if (!$this->prix_kg) {
+            return null;
+        }
+
+        foreach ($this->prix_kg as $prixKg) {
+            if ($prixKg['ligne'] === $ligne) {
+                return $prixKg;
+            }
+        }
+
+        return null;
     }
 }
