@@ -6,6 +6,7 @@ use App\Enums\TypeExpedition;
 use App\Models\Expedition;
 use App\Models\TarifAgenceGroupage;
 use App\Models\TarifAgenceSimple;
+use App\Models\TarifGroupage;
 use App\Models\Zone;
 use App\Services\CommissionService;
 use App\Services\TarificationService;
@@ -49,8 +50,12 @@ class ExpeditionTarificationService
             TypeExpedition::LD => $this->calculerTarifSimple($expedition, $zoneDepart, $zoneDestination),
             TypeExpedition::GROUPAGE_AFRIQUE => $this->calculerTarifGroupageAfrique($expedition),
             TypeExpedition::GROUPAGE_CA => $this->calculerTarifGroupageCA($expedition),
-            TypeExpedition::GROUPAGE_DHD => $this->calculerTarifGroupageDHD($expedition, $zoneDepart, $zoneDestination),
-            default => [],
+            TypeExpedition::GROUPAGE_DHD_AERIEN => $this->calculerTarifGroupageDHD($expedition, $zoneDepart, $zoneDestination),
+            TypeExpedition::GROUPAGE_DHD_MARITIME => $this->calculerTarifGroupageDHD($expedition, $zoneDepart, $zoneDestination),
+            default => [
+                'success' => false,
+                'message' => 'Type d\'expédition non pris en charge pour la tarification'
+            ],
         };
     }
 
@@ -152,6 +157,7 @@ class ExpeditionTarificationService
         // ÉTAPE 2 : Récupérer le pays de destination
         // ============================================
         $paysDestination = strtolower(trim($expedition->pays_destination ?? ''));
+        $villeDestination = strtolower(trim($expedition->destinataire_ville ?? ''));
         if (empty($paysDestination)) {
             return [
                 'success' => false,
@@ -163,60 +169,31 @@ class ExpeditionTarificationService
         // ÉTAPE 3 : Rechercher le tarif groupage pour le pays de destination
         // ============================================
         $tarifAgenceGroupage = null;
-        $tarifGroupage = null;
-        $prixMode = null;
-
-        // Étape 3.1 : Chercher d'abord un tarif d'agence (si agence_id existe)
         if ($expedition->agence_id) {
             $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($expedition->agence_id)
                 ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
-                ->with('tarifGroupage')
-                ->actif()
                 ->get()
-                ->filter(function ($tag) use ($paysDestination) {
-                    $paysTarif = strtolower(trim($tag->pays ?? ''));
+                ->filter(function ($tag) use ($paysDestination, $villeDestination) {
+                    $paysTarif = strtolower(trim($tag->pays . " " . $tag->ville ?? ''));
                     return !empty($paysTarif) &&
-                        (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
+                        (str_contains($paysTarif, $paysDestination . " " . $villeDestination) || str_contains($paysDestination . " " . $villeDestination, $paysTarif));
                 })
                 ->first();
         }
 
-        // Étape 3.2 : Si un tarif d'agence existe, utiliser son tarif groupage associé
-        if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-            $tarifGroupage = $tarifAgenceGroupage->tarifGroupage;
-            $prixMode = $tarifAgenceGroupage->getPrixPourMode('afrique');
-            if (!$prixMode) {
-                $prixMode = $tarifGroupage->getPrixPourMode('afrique');
-            }
-        } else {
-            return [
-                'success' => false,
-                'message' => "Aucun tarif d'agence groupage trouvé pour le pays de destination : {$paysDestination}",
-            ];
+        // ============================================
+        // ÉTAPE 4 : Calculer le montant (poids * montant_base du mode)
+        // ============================================
+        if ($tarifAgenceGroupage) {
+            $montantBaseUnitaire = (float) ($tarifAgenceGroupage->montant_base ?? 0);
+            $pourcentagePrestation = (float) ($tarifAgenceGroupage->pourcentage_prestation ?? 0);
+
+            // Calculer les montants totaux
+            $montantBase = $poidsTotal * $montantBaseUnitaire;
+            $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
+            $montantExpedition = $montantBase + $montantPrestation;
+            $fraisEmballage = $expedition->getFraisEmballageTotal();
         }
-
-        // ============================================
-        // ÉTAPE 4 : Vérifier qu'un tarif a été trouvé
-        // ============================================
-        if (!$prixMode) {
-            return [
-                'success' => true,
-                'message' => "Aucun prix trouvé pour le mode 'afrique' dans le tarif groupage",
-            ];
-        }
-
-        // ============================================
-        // ÉTAPE 5 : Calculer le montant (poids * montant_base du mode)
-        // ============================================
-        $montantBaseUnitaire = (float) ($prixMode['montant_base'] ?? 0);
-        $pourcentagePrestation = (float) ($prixMode['pourcentage_prestation'] ?? 0);
-
-        // Calculer les montants totaux
-        $montantBase = $poidsTotal * $montantBaseUnitaire;
-        $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
-        $montantExpedition = $montantBase + $montantPrestation;
-        $fraisEmballage = $expedition->getFraisEmballageTotal();
-
         // ============================================
         // ÉTAPE 6 : Retour du résultat structuré
         // ============================================
@@ -257,54 +234,25 @@ class ExpeditionTarificationService
         // ÉTAPE 2 : Rechercher le tarif groupage CA (sans filtre par pays)
         // ============================================
         $tarifAgenceGroupage = null;
-        $tarifGroupage = null;
-        $prixMode = null;
-
-        // Étape 2.1 : Chercher d'abord un tarif d'agence (si agence_id existe)
         if ($expedition->agence_id) {
             $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($expedition->agence_id)
                 ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
-                ->with('tarifGroupage')
-                ->actif()
                 ->first();
-        }
-
-        // Étape 2.2 : Si un tarif d'agence existe, utiliser son tarif groupage associé
-        if ($tarifAgenceGroupage && $tarifAgenceGroupage->tarifGroupage) {
-            $tarifGroupage = $tarifAgenceGroupage->tarifGroupage;
-            $prixMode = $tarifAgenceGroupage->getPrixPourMode('colis');
-            if (!$prixMode) {
-                $prixMode = $tarifGroupage->getPrixPourMode('colis');
-            }
-        } else {
-            return [
-                'success' => false,
-                'message' => "Aucun tarif d'agence groupage CA trouvé",
-            ];
-        }
-
-        // ============================================
-        // ÉTAPE 3 : Vérifier qu'un tarif a été trouvé
-        // ============================================
-        if (!$prixMode) {
-            return [
-                'success' => false,
-                'message' => "Aucun prix trouvé pour le mode 'colis' dans le tarif groupage CA",
-            ];
         }
 
         // ============================================
         // ÉTAPE 4 : Calculer le montant (poids * montant_base du mode)
         // ============================================
-        $montantBaseUnitaire = (float) ($prixMode['montant_base'] ?? 0);
-        $pourcentagePrestation = (float) ($prixMode['pourcentage_prestation'] ?? 0);
+        if ($tarifAgenceGroupage) {
+            $montantBaseUnitaire = (float) ($tarifAgenceGroupage->montant_base ?? 0);
+            $pourcentagePrestation = (float) ($tarifAgenceGroupage->pourcentage_prestation ?? 0);
 
-        // Calculer les montants totaux
-        $montantBase = $poidsTotal * $montantBaseUnitaire;
-        $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
-        $montantExpedition = $montantBase + $montantPrestation;
-        $fraisEmballage = $expedition->getFraisEmballageTotal();
-
+            // Calculer les montants totaux
+            $montantBase = $poidsTotal * $montantBaseUnitaire;
+            $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
+            $montantExpedition = $montantBase + $montantPrestation;
+            $fraisEmballage = $expedition->getFraisEmballageTotal();
+        }
         // ============================================
         // ÉTAPE 5 : Retour du résultat structuré
         // ============================================
@@ -395,81 +343,9 @@ class ExpeditionTarificationService
      */
     public function simulerTarifExpedition(array $donneesExpedition, array $articles): array
     {
-        try {
-            // Récupérer les zones (pays fournis dans $donneesExpedition)
-            $zoneDepart = $this->zoneService->getZoneByCountry($donneesExpedition['pays_depart'] ?? '');
-            $zoneDestination = $this->zoneService->getZoneByCountry($donneesExpedition['pays_arrivee'] ?? ($donneesExpedition['pays_destination'] ?? ''));
-
-            if (!$zoneDepart || !$zoneDestination) {
-                return [
-                    'success' => false,
-                    'message' => 'Zone de départ ou de destination non identifiée'
-                ];
-            }
-
-            // Calculer les totaux à partir des articles simulés
-            $poidsTotal = 0;
-            $volumeTotal = 0;
-            foreach ($articles as $article) {
-                $poids = (float) ($article['poids'] ?? 0) * (int) ($article['quantite'] ?? 1);
-                $poidsTotal += $poids;
-
-                if (isset($article['longueur'], $article['largeur'], $article['hauteur'])) {
-                    $volumeTotal += (float) $article['longueur'] * (float) $article['largeur'] * (float) $article['hauteur'] * (int) ($article['quantite'] ?? 1);
-                }
-            }
-
-            // Déterminer le mode (simple/LD ou groupage)
-            $modeExpedition = $donneesExpedition['type_expedition'] ?? TypeExpedition::LD->value;
-
-            if ($modeExpedition === TypeExpedition::LD->value || $modeExpedition === 'simple') {
-                $indiceReference = (float) max($poidsTotal, $volumeTotal / 5000);
-                $indiceArrondi = $this->tarificationService->arrondirIndice($indiceReference);
-
-                // Chercher le tarif agence correspondant
-                $tarifAgence = TarifAgenceSimple::where('agence_id', $donneesExpedition['agence_id'])
-                    ->where('indice', $indiceArrondi)
-                    ->where('actif', true)
-                    ->first();
-
-                if (!$tarifAgence) {
-                    return [
-                        'success' => false,
-                        'message' => "Aucun tarif trouvé pour l'indice {$indiceArrondi} dans cette agence."
-                    ];
-                }
-
-                $prixZone = $tarifAgence->getPrixPourZone($zoneDestination->id);
-                if (!$prixZone) {
-                    return [
-                        'success' => false,
-                        'message' => 'Aucun tarif trouvé pour la zone de destination dans cette agence.'
-                    ];
-                }
-
-                return [
-                    'success' => true,
-                    'tarif' => $prixZone
-                ];
-            } else {
-                // Pour le groupage, on simule article par article ou par catégorie
-                // Note: Ici on simplifie en prenant la première catégorie trouvée ou en bouclant
-                // Pour une simulation client, ils envoient souvent un mélange.
-                // Ici on va renvoyer un succès global basé sur TarificationService::simulerTarification
-                $resultat = $this->tarificationService->simulerTarification(array_merge($donneesExpedition, [
-                    'poids' => $poidsTotal,
-                    'type_expedition' => $modeExpedition,
-                    'pays_arrivee' => $zoneDestination->pays[0] ?? '',
-                    'category_id' => $articles[0]['category_id'] ?? ($articles[0]['produit_id'] ?? null)  // Fallback simpliste
-                ]));
-
-                return $resultat;
-            }
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'message' => 'Erreur technique lors de la simulation : ' . $e->getMessage()
-            ];
-        }
+        return $this->tarificationService->simulerTarification(array_merge($donneesExpedition, [
+            'poids' => collect($articles)->sum(fn($a) => ($a['poids'] ?? 0) * ($a['quantite'] ?? 1)),
+            'category_id' => $articles[0]['category_id'] ?? null
+        ]));
     }
 }

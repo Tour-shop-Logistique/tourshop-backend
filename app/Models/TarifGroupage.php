@@ -26,15 +26,9 @@ class TarifGroupage extends Model
         });
 
         static::saving(function ($model) {
-            if ($model->prix_modes) {
-                $prixModes = $model->prix_modes;
-                foreach ($prixModes as &$mode) {
-                    if (isset($mode['montant_base']) && isset($mode['pourcentage_prestation'])) {
-                        $mode['montant_prestation'] = round(($mode['montant_base'] * $mode['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
-                        $mode['montant_expedition'] = round($mode['montant_base'] + $mode['montant_prestation'], 2, PHP_ROUND_HALF_UP);
-                    }
-                }
-                $model->prix_modes = $prixModes;
+            if (isset($model->montant_base) && isset($model->pourcentage_prestation)) {
+                $model->montant_prestation = round(($model->montant_base * $model->pourcentage_prestation) / 100, 2, PHP_ROUND_HALF_UP);
+                $model->montant_expedition = round($model->montant_base + $model->montant_prestation, 2, PHP_ROUND_HALF_UP);
             }
         });
     }
@@ -42,16 +36,22 @@ class TarifGroupage extends Model
     protected $fillable = [
         'category_id',
         'type_expedition',
-        'prix_unitaire',
-        'prix_modes',
+        'mode',
+        'ligne',
+        'montant_base',
+        'pourcentage_prestation',
+        'montant_prestation',
+        'montant_expedition',
         'actif',
         'pays',
         'backoffice_id',
     ];
 
     protected $casts = [
-        'prix_modes' => 'array',
-        'prix_unitaire' => 'decimal:2',
+        'montant_base' => 'float',
+        'pourcentage_prestation' => 'float',
+        'montant_prestation' => 'float',
+        'montant_expedition' => 'float',
         'type_expedition' => TypeExpedition::class,
         'actif' => 'boolean',
     ];
@@ -69,20 +69,5 @@ class TarifGroupage extends Model
     public function scopeActif($query)
     {
         return $query->where('actif', true);
-    }
-
-    public function getPrixPourMode(string $mode)
-    {
-        if (!$this->prix_modes) {
-            return null;
-        }
-
-        foreach ($this->prix_modes as $prixMode) {
-            if ($prixMode['mode'] === $mode) {
-                return $prixMode;
-            }
-        }
-
-        return null;
     }
 }

@@ -11,17 +11,17 @@ return new class extends Migration {
         Schema::create('tarifs_agence_groupage', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            // Référence obligatoire vers l'agence
-            $table->uuid('agence_id');
+            $table->uuid('agence_id')->nullable();
             $table->uuid('category_id')->nullable();
+            $table->uuid('tarif_groupage_id')->nullable();
 
-            // Référence obligatoire vers le tarif groupage backoffice
-            $table->uuid('tarif_groupage_id');
-            $table->enum('type_expedition', [TypeExpedition::class]);
-
-            // Prix personnalisés par mode (JSONB array)
-            // Chaque élément: {mode, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->jsonb('prix_modes')->nullable();
+            $table->enum('type_expedition', array_column(TypeExpedition::cases(), 'value'));
+            $table->string('mode')->nullable();
+            $table->string('ligne')->nullable();
+            $table->decimal('montant_base', 10, 2)->nullable();
+            $table->decimal('pourcentage_prestation', 10, 2)->nullable();
+            $table->decimal('montant_prestation', 10, 2)->nullable();
+            $table->decimal('montant_expedition', 10, 2)->nullable();
             $table->string('pays')->nullable();
 
             // Statut
@@ -29,9 +29,9 @@ return new class extends Migration {
             $table->timestamps();
 
             // Contraintes de clés étrangères
-            $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
-            $table->foreign('category_id')->references('id')->on('category_products')->cascadeOnDelete();
-            $table->foreign('tarif_groupage_id')->references('id')->on('tarifs_groupage')->onDelete('cascade');
+            $table->foreign('agence_id')->references('id')->on('agences')->nullOnDelete();
+            $table->foreign('category_id')->references('id')->on('category_products')->nullOnDelete();
+            $table->foreign('tarif_groupage_id')->references('id')->on('tarifs_groupage')->nullOnDelete();
 
             // Contrainte d'unicité : une agence ne peut avoir qu'un seul tarif pour un tarif groupage backoffice donné
             $table->unique(['agence_id', 'tarif_groupage_id']);

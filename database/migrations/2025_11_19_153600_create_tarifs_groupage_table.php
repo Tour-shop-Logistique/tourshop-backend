@@ -11,9 +11,13 @@ return new class extends Migration {
         Schema::create('tarifs_groupage', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('category_id')->nullable();
-            $table->enum('type_expedition', [TypeExpedition::class]);
-            $table->decimal('prix_unitaire', 12, 2)->nullable();
-            $table->jsonb('prix_modes')->nullable();
+            $table->enum('type_expedition', array_column(TypeExpedition::cases(), 'value'));
+            $table->string('mode')->nullable();
+            $table->string('ligne')->nullable();
+            $table->decimal('montant_base', 10, 2)->nullable();
+            $table->decimal('pourcentage_prestation', 10, 2)->nullable();
+            $table->decimal('montant_prestation', 10, 2)->nullable();
+            $table->decimal('montant_expedition', 10, 2)->nullable();
             $table->boolean('actif')->default(true);
             $table->string('pays')->nullable();
             $table->uuid('backoffice_id')->nullable();

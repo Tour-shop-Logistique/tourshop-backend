@@ -265,16 +265,21 @@ class AgenceExpeditionController extends Controller
                     if ($validated['type_expedition'] !== TypeExpedition::LD) {
                         $paysDepart = strtolower(trim($validated['pays_depart']));
                         $paysDestination = strtolower(trim($validated['pays_destination']));
+                        $villeDepart = strtolower(trim($validated['expediteur_ville']));
                         $villeDestination = strtolower(trim($validated['destinataire_ville']));
                         $isCoteDivoireFrance = (str_contains($paysDepart, 'ivoire') && str_contains($paysDestination, 'france')) ||
                             (str_contains($paysDepart, 'france') && str_contains($paysDestination, 'ivoire'));
 
                         // GROUPAGE_DHD : Côte d'Ivoire ↔ France - utiliser prix_kg de la catégorie
-                        if ($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD && $isCoteDivoireFrance) {
+                        if (($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD_AERIEN || $validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD_MARITIME) && $isCoteDivoireFrance) {
                             $category = $colis->category();
-                            if ($category) {
-                                $prixLigne = $category->getPrixPourLigne($villeDestination);
-                                $prixUnitaire = ($prixLigne['prix'] ?? 0);
+                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
+                                ->where('type_expedition', $validated['type_expedition'])
+                                ->where('category_id', $category->id)
+                                ->where('ligne', $villeDepart . '-' . $villeDestination)
+                                ->first();
+                            if ($tarifAgenceGroupage) {
+                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
                             }
                         }
 
@@ -282,8 +287,6 @@ class AgenceExpeditionController extends Controller
                         elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE) {
                             $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
                                 ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
-                                ->with('tarifGroupage')
-                                ->actif()
                                 ->get()
                                 ->filter(function ($tag) use ($paysDestination) {
                                     $paysTarif = strtolower(trim($tag->pays ?? ''));
@@ -292,8 +295,7 @@ class AgenceExpeditionController extends Controller
                                 })
                                 ->first();
                             if ($tarifAgenceGroupage) {
-                                $prixMode = $tarifAgenceGroupage->getPrixPourMode('afrique');
-                                $prixUnitaire = ($prixMode['montant_base'] ?? 0);
+                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
                             }
                         }
 
@@ -301,12 +303,9 @@ class AgenceExpeditionController extends Controller
                         elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA) {
                             $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
                                 ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
-                                ->with('tarifGroupage')
-                                ->actif()
                                 ->first();
                             if ($tarifAgenceGroupage) {
-                                $prixMode = $tarifAgenceGroupage->getPrixPourMode('colis');
-                                $prixUnitaire = ($prixMode['montant_base'] ?? 0);
+                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
                             }
                         }
 

@@ -46,22 +46,20 @@ class TarifGroupageController extends Controller
     {
         try {
             $user = $request->user();
-            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
+            if (!in_array($user->type, [UserType::BACKOFFICE])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
             $request->validate([
                 'category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
                 'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
-                // 'prix_unitaire' => ['nullable', 'numeric', 'min:1'],
+                'mode' => ['required', 'string'],
+                'ligne' => ['nullable', 'string'],
+                'montant_base' => ['required', 'numeric', 'min:0'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
                 'pays' => ['nullable', 'string'],
-                'prix_modes' => ['required', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['nullable', 'string'],
-                'prix_modes.*.ligne' => ['nullable', 'string'],
-                'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
-                'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
- 
+
             if ($request->category_id) {
                 $category = CategoryProduct::find($request->category_id);
                 if ($user->type === UserType::BACKOFFICE && $category->backoffice_id !== $user->backoffice_id) {
@@ -69,34 +67,39 @@ class TarifGroupageController extends Controller
                 }
             }
 
-            // Vérifier la restriction pour le type groupage_ca : un backoffice ne peut avoir qu'un seul tarif de ce type
             $typeExpedition = TypeExpedition::tryFrom($request->type_expedition);
-            if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
-                $backofficeId = $user->backoffice_id ?? null;
-                if ($backofficeId) {
-                    $existingTarifGroupageCA = TarifGroupage::where('backoffice_id', $backofficeId)
-                        ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
-                        ->first();
 
-                    if ($existingTarifGroupageCA) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Un backoffice ne peut avoir qu\'un seul tarif de type groupage_ca.'
-                        ], 422);
-                    }
+            // Vérifier la restriction pour le type groupage_ca (un seul par backoffice/mode/ligne)
+            if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
+                $exists = TarifGroupage::where('backoffice_id', $user->backoffice_id)
+                    ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                    ->exists();
+
+                if ($exists) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ce tarif groupage_ca existe déjà pour ce mode et cette ligne.'
+                    ], 422);
                 }
             }
 
             $tarif = TarifGroupage::create([
                 'category_id' => $request->category_id,
                 'type_expedition' => $request->type_expedition,
-                'prix_unitaire' => 0,
-                'prix_modes' => $request->prix_modes,
+                'mode' => $request->mode,
+                'ligne' => $request->ligne,
+                'montant_base' => $request->montant_base,
+                'pourcentage_prestation' => $request->pourcentage_prestation,
                 'pays' => $request->pays ?? $user->backoffice->pays,
-                'backoffice_id' => $user->backoffice->id,
+                'backoffice_id' => $user->backoffice_id,
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Tarif groupage créé.', 'tarif' => $tarif], 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Tarif groupage créé avec succès.',
+                'tarif' => $tarif
+            ], 201);
+
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
@@ -118,15 +121,24 @@ class TarifGroupageController extends Controller
             }
 
             $request->validate([
-                // 'prix_unitaire' => ['sometimes', 'numeric', 'min:1'],
+                'ligne' => ['sometimes', 'string'],
+                'mode' => ['sometimes', 'string'],
                 'pays' => ['sometimes', 'string'],
-                'prix_modes' => ['sometimes', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['sometimes', 'string'],
-                'prix_modes.*.montant_base' => ['required', 'numeric', 'min:0'],
-                'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
+                'category_id' => ['sometimes', 'uuid', 'exists:category_products,id'],
+                'type_expedition' => ['sometimes', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
+                'montant_base' => ['sometimes', 'numeric', 'min:0'],
+                'pourcentage_prestation' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            $tarif->update($request->only(['pays', 'prix_modes']));
+            $tarif->update($request->only([
+                'ligne',
+                'mode',
+                'pays',
+                'category_id',
+                'type_expedition',
+                'montant_base',
+                'pourcentage_prestation',
+            ]));
 
             return response()->json(['success' => true, 'message' => 'Tarif groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {

@@ -13,6 +13,7 @@ return new class extends Migration {
         Schema::create('colis', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('expedition_id');
+            $table->uuid('category_id')->nullable();
             $table->string('code_colis');
             $table->string('designation')->nullable();
             $table->jsonb('articles')->nullable();
@@ -27,7 +28,8 @@ return new class extends Migration {
             $table->decimal('prix_total', 10, 2)->nullable();
             $table->timestamps();
 
-            $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('cascade');
+            $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');
+            $table->foreign('category_id')->references('id')->on('category_products')->onDelete('set null');
         });
     }
 

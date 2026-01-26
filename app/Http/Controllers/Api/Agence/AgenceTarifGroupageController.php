@@ -35,10 +35,6 @@ class AgenceTarifGroupageController extends Controller
                 $query->where('agence_id', $request->agence_id);
             }
 
-            if ($request->filled('category_id')) {
-                $query->where('category_id', $request->category_id);
-            }
-
             $tarifs = $query->with(['category:id,nom'])->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
@@ -63,42 +59,32 @@ class AgenceTarifGroupageController extends Controller
 
             $request->validate([
                 'tarif_groupage_id' => ['required', 'uuid', 'exists:tarifs_groupage,id'],
-                'prix_modes' => ['required', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['nullable', 'string'],
-                'prix_modes.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
             $tarifGroupage = TarifGroupage::find($request->tarif_groupage_id);
+
             if (!$tarifGroupage || !$tarifGroupage->actif) {
                 return response()->json(['success' => false, 'message' => 'Tarif groupage backoffice introuvable ou inactif.'], 404);
             }
 
-            // Vérifier la restriction pour le type groupage_ca : une agence ne peut avoir qu'un seul tarif de ce type
-            if ($tarifGroupage->type_expedition === TypeExpedition::GROUPAGE_CA) {
-                $existingTarifGroupageCA = TarifAgenceGroupage::where('agence_id', $agence->id)
-                    ->whereHas('tarifGroupage', function ($query) {
-                        $query->where('type_expedition', TypeExpedition::GROUPAGE_CA);
-                    })
-                    ->first();
+            // Vérifier si un tarif agence existe déjà pour ce tarif backoffice
+            $exists = TarifAgenceGroupage::where('agence_id', $agence->id)
+                ->where('tarif_groupage_id', $request->tarif_groupage_id)
+                ->exists();
 
-                if ($existingTarifGroupageCA) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Une agence ne peut avoir qu\'un seul tarif de type groupage_ca.'
-                    ], 422);
-                }
+            if ($exists) {
+                return response()->json(['success' => false, 'message' => 'Ce tarif agence existe déjà pour ce tarif backoffice.'], 422);
             }
 
-            // Vérifier que tous les modes fournis existent dans le tarif backoffice
-            if (!empty($tarifGroupage->prix_modes)) {
-                $modesGroupage = collect($tarifGroupage->prix_modes)->pluck('mode')->filter()->toArray();
-                $modesAgence = collect($request->prix_modes)->pluck('mode')->filter()->toArray();
+            // Vérifier la restriction pour le type groupage_ca (un seul par agence/type)
+            if ($tarifGroupage->type_expedition === TypeExpedition::GROUPAGE_CA) {
+                $existingTarifGroupageCA = TarifAgenceGroupage::where('agence_id', $agence->id)
+                    ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                    ->exists();
 
-                if (!empty($modesAgence) && !empty($modesGroupage)) {
-                    $modesMissing = array_diff($modesAgence, $modesGroupage);
-                    if (!empty($modesMissing)) {
-                        return response()->json(['success' => false, 'message' => 'Modes non trouvés dans le tarif backoffice: ' . implode(', ', $modesMissing)], 422);
-                    }
+                if ($existingTarifGroupageCA) {
+                    return response()->json(['success' => false, 'message' => 'Une agence ne peut avoir qu\'un seul tarif de type groupage_ca.'], 422);
                 }
             }
 
@@ -106,12 +92,19 @@ class AgenceTarifGroupageController extends Controller
                 'agence_id' => $agence->id,
                 'tarif_groupage_id' => $tarifGroupage->id,
                 'type_expedition' => $tarifGroupage->type_expedition,
+                'mode' => $tarifGroupage->mode,
+                'ligne' => $tarifGroupage->ligne,
                 'category_id' => $tarifGroupage->category_id,
-                'prix_modes' => $request->prix_modes,
+                'pourcentage_prestation' => $request->pourcentage_prestation,
                 'pays' => $tarifGroupage->pays,
             ]);
 
-            return response()->json(['success' => true, 'message' => 'Tarif agence groupage créé.', 'tarif' => $tarif], 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Tarif agence groupage créé avec succès.',
+                'tarif' => $tarif
+            ], 201);
+
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {
@@ -139,30 +132,10 @@ class AgenceTarifGroupageController extends Controller
             }
 
             $request->validate([
-                'prix_modes' => ['required', 'array', 'min:1'],
-                'prix_modes.*.mode' => ['nullable', 'string'],
-                'prix_modes.*.pourcentage_prestation' => ['required_with:prix_modes', 'numeric', 'min:0', 'max:100'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            if ($request->has('prix_modes')) {
-                $tarifGroupage = $tarif->tarifGroupage;
-
-                // Si le tarif backoffice a des modes définis, on vérifie la cohérence
-                if (!empty($tarifGroupage->prix_modes)) {
-                    $modesGroupage = collect($tarifGroupage->prix_modes)->pluck('mode')->filter()->toArray();
-                    $modesAgence = collect($request->prix_modes)->pluck('mode')->filter()->toArray();
-
-                    // Si des modes sont spécifiés par l'agence, ils doivent exister dans le backoffice
-                    if (!empty($modesAgence) && !empty($modesGroupage)) {
-                        $modesMissing = array_diff($modesAgence, $modesGroupage);
-                        if (!empty($modesMissing)) {
-                            return response()->json(['success' => false, 'message' => 'Modes non trouvés dans le tarif backoffice: ' . implode(', ', $modesMissing)], 422);
-                        }
-                    }
-                }
-            }
-
-            $tarif->update($request->only(['prix_modes']));
+            $tarif->update($request->only(['pourcentage_prestation']));
 
             return response()->json(['success' => true, 'message' => 'Tarif agence groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {
@@ -191,7 +164,7 @@ class AgenceTarifGroupageController extends Controller
                 return response()->json(['success' => false, 'message' => 'Tarif non trouvé.'], 404);
             }
 
-            return response()->json(['success' => true, 'tarif' => $tarif->load('tarifGroupage')]);
+            return response()->json(['success' => true, 'tarif' => $tarif->load(['tarifGroupage', 'category'])]);
         } catch (Exception $e) {
             Log::error('Erreur affichage tarif agence groupage : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);

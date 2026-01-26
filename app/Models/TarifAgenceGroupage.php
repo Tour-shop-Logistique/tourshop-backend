@@ -24,45 +24,15 @@ class TarifAgenceGroupage extends Model
             $model->{$model->getKeyName()} = (string) Str::uuid();
         });
 
-        // Recalculer les montants pour chaque mode avant sauvegarde
+        // Recalculer les montants avant sauvegarde
         static::saving(function ($model) {
-            if ($model->prix_modes && $model->tarif_groupage_id) {
-                $prixModes = $model->prix_modes;
+            if ($model->tarif_groupage_id && isset($model->pourcentage_prestation)) {
                 $tarifBack = TarifGroupage::find($model->tarif_groupage_id);
-                $baseByMode = [];
-                $defaultBase = null;
-
-                if ($tarifBack && is_array($tarifBack->prix_modes) && count($tarifBack->prix_modes) > 0) {
-                    // Le premier élément sert de défaut si aucun mode n'est spécifié
-                    $defaultBase = $tarifBack->prix_modes[0];
-
-                    foreach ($tarifBack->prix_modes as $m) {
-                        if (isset($m['mode'])) {
-                            $baseByMode[$m['mode']] = $m;
-                        }
-                    }
+                if ($tarifBack && isset($tarifBack->montant_base)) {
+                    $model->montant_base = $tarifBack->montant_base;
+                    $model->montant_prestation = round(($model->montant_base * $model->pourcentage_prestation) / 100, 2, PHP_ROUND_HALF_UP);
+                    $model->montant_expedition = round($model->montant_base + $model->montant_prestation, 2, PHP_ROUND_HALF_UP);
                 }
-
-                foreach ($prixModes as &$mode) {
-                    if (isset($mode['pourcentage_prestation'])) {
-                        $base = null;
-
-                        if (!empty($mode['mode']) && isset($baseByMode[$mode['mode']])) {
-                            // Mode spécifié et trouvé dans le tarif parent
-                            $base = $baseByMode[$mode['mode']];
-                        } elseif (empty($mode['mode'])) {
-                            // Mode non spécifié : utiliser le tarif par défaut (premier trouvé)
-                            $base = $defaultBase;
-                        }
-
-                        if ($base && isset($base['montant_base'])) {
-                            $mode['montant_base'] = $base['montant_base'];
-                            $mode['montant_prestation'] = round(($mode['montant_base'] * $mode['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
-                            $mode['montant_expedition'] = round($mode['montant_base'] + $mode['montant_prestation'], 2, PHP_ROUND_HALF_UP);
-                        }
-                    }
-                }
-                $model->prix_modes = $prixModes;
             }
         });
     }
@@ -72,13 +42,21 @@ class TarifAgenceGroupage extends Model
         'tarif_groupage_id',
         'type_expedition',
         'category_id',
-        'prix_modes',
+        'mode',
+        'ligne',
+        'montant_base',
+        'pourcentage_prestation',
+        'montant_prestation',
+        'montant_expedition',
         'pays',
         'actif',
     ];
 
     protected $casts = [
-        'prix_modes' => 'array',
+        'montant_base' => 'float',
+        'pourcentage_prestation' => 'float',
+        'montant_prestation' => 'float',
+        'montant_expedition' => 'float',
         'actif' => 'boolean',
     ];
 
@@ -105,20 +83,5 @@ class TarifAgenceGroupage extends Model
     public function scopeActif($query)
     {
         return $query->where('actif', true);
-    }
-
-    public function getPrixPourMode(string $mode)
-    {
-        if (!$this->prix_modes) {
-            return null;
-        }
-
-        foreach ($this->prix_modes as $prixMode) {
-            if ($prixMode['mode'] === $mode) {
-                return $prixMode;
-            }
-        }
-
-        return null;
     }
 }

@@ -1,0 +1,24 @@
+﻿
+  [90mMigration name[39m [90m.......[39m [90mBatch / Status[39m  
+  2014_10_12_000000_create_users_table  [1m[1][22m [32;1mRan[39;22m  
+  2014_10_12_100000_create_password_reset_tokens_table  [1m[1][22m [32;1mRan[39;22m  
+  2018_08_08_100000_create_telescope_entries_table  [1m[5][22m [32;1mRan[39;22m  
+  2019_08_19_000000_create_failed_jobs_table  [1m[1][22m [32;1mRan[39;22m  
+  2019_12_14_000001_create_personal_access_tokens_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_07_30_022523_create_agences_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_08_04_214349_create_livreurs_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_09_10_001328_create_backoffices_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_09_11_000001_add_foreign_keys_to_users_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_09_11_214900_create_zones_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_09_12_015300_create_tarifs_simple_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_09_12_015400_create_tarifs_agence_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_11_12_110600_create_category_products_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_11_12_110700_create_produits_table  [1m[1][22m [32;1mRan[39;22m  
+  2025_11_19_153600_create_tarifs_groupage_table  [1m[8][22m [32;1mRan[39;22m  
+  2025_11_19_164900_create_tarifs_agence_groupage_table  [1m[8][22m [32;1mRan[39;22m  
+  2025_11_25_000000_create_expeditions_table  [1m[3][22m [32;1mRan[39;22m  
+  2025_11_27_194322_create_commission_settings_table  [1m[2][22m [32;1mRan[39;22m  
+  2025_11_28_083232_create_colis_table  [1m[3][22m [32;1mRan[39;22m  
+  2026_01_05_213122_update_expeditions_table_json_contacts  [1m[6][22m [32;1mRan[39;22m  
+  2026_01_25_075201_update_tarifs_groupage_structure  [1m[7][22m [32;1mRan[39;22m  
+
