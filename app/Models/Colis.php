@@ -29,9 +29,12 @@ class Colis extends Model
         'largeur',
         'hauteur',
         'volume',
-        'prix_unitaire',
         'prix_emballage',
-        'prix_total',
+        'prix_unitaire',
+        'montant_colis_base',
+        'pourcentage_prestation',
+        'montant_colis_prestation',
+        'montant_colis_total',
     ];
 
     protected $casts = [
@@ -43,7 +46,10 @@ class Colis extends Model
         'volume' => 'decimal:2',
         'prix_unitaire' => 'decimal:2',
         'prix_emballage' => 'decimal:2',
-        'prix_total' => 'decimal:2',
+        'montant_colis_base' => 'decimal:2',
+        'pourcentage_prestation' => 'decimal:2',
+        'montant_colis_prestation' => 'decimal:2',
+        'montant_colis_total' => 'decimal:2',
     ];
 
     public function expedition(): BelongsTo

@@ -23,9 +23,12 @@ return new class extends Migration {
             $table->decimal('hauteur', 10, 2)->nullable()->comment('en cm');
             $table->decimal('volume', 10, 2)->nullable()->comment('en cm³');
             $table->decimal('poids', 10, 2)->comment('en kg');
-            $table->decimal('prix_unitaire', 10, 2)->nullable();
             $table->decimal('prix_emballage', 10, 2)->nullable();
-            $table->decimal('prix_total', 10, 2)->nullable();
+            $table->decimal('prix_unitaire', 10, 2)->nullable();
+            $table->decimal('montant_colis_base', 10, 2)->nullable();
+            $table->decimal('pourcentage_prestation', 10, 2)->nullable();
+            $table->decimal('montant_colis_prestation', 10, 2)->nullable();
+            $table->decimal('montant_colis_total', 10, 2)->nullable();
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

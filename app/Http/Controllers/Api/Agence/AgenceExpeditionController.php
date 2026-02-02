@@ -9,7 +9,6 @@ use App\Enums\UserType;
 use App\Http\Controllers\Controller;
 use App\Models\Agence;
 use App\Models\Colis;
-use App\Models\ColisArticle;
 use App\Models\Expedition;
 use App\Models\TarifAgenceGroupage;
 use App\Models\User;
@@ -246,7 +245,7 @@ class AgenceExpeditionController extends Controller
             if (!empty($validated['colis'])) {
                 foreach ($validated['colis'] as $colisData) {
                     // Créer le colis
-                    $colis = Colis::create([
+                    Colis::create([
                         'expedition_id' => $expedition->id,
                         'category_id' => $colisData['category_id'] ?? null,
                         'code_colis' => $colisData['code_colis'],
@@ -258,72 +257,6 @@ class AgenceExpeditionController extends Controller
                         'hauteur' => $colisData['hauteur'],
                         'prix_emballage' => $colisData['prix_emballage'],
                     ]);
-
-                    // Calculer le prix_unitaire selon le type d'expédition
-                    $prixUnitaire = null;
-
-                    if ($validated['type_expedition'] !== TypeExpedition::LD) {
-                        $paysDepart = strtolower(trim($validated['pays_depart']));
-                        $paysDestination = strtolower(trim($validated['pays_destination']));
-                        $villeDepart = strtolower(trim($validated['expediteur_ville']));
-                        $villeDestination = strtolower(trim($validated['destinataire_ville']));
-                        $isCoteDivoireFrance = (str_contains($paysDepart, 'ivoire') && str_contains($paysDestination, 'france')) ||
-                            (str_contains($paysDepart, 'france') && str_contains($paysDestination, 'ivoire'));
-
-                        // GROUPAGE_DHD : Côte d'Ivoire ↔ France - utiliser prix_kg de la catégorie
-                        if (($validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD_AERIEN || $validated['type_expedition'] === TypeExpedition::GROUPAGE_DHD_MARITIME) && $isCoteDivoireFrance) {
-                            $category = $colis->category();
-                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                                ->where('type_expedition', $validated['type_expedition'])
-                                ->where('category_id', $category->id)
-                                ->where('ligne', $villeDepart . '-' . $villeDestination)
-                                ->first();
-                            if ($tarifAgenceGroupage) {
-                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
-                            }
-                        }
-
-                        // GROUPAGE_AFRIQUE : Rechercher tarif par pays de destination
-                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_AFRIQUE) {
-                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                                ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
-                                ->get()
-                                ->filter(function ($tag) use ($paysDestination) {
-                                    $paysTarif = strtolower(trim($tag->pays ?? ''));
-                                    return !empty($paysTarif) &&
-                                        (str_contains($paysTarif, $paysDestination) || str_contains($paysDestination, $paysTarif));
-                                })
-                                ->first();
-                            if ($tarifAgenceGroupage) {
-                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
-                            }
-                        }
-
-                        // GROUPAGE_CA : Tarif général sans filtre de pays
-                        elseif ($validated['type_expedition'] === TypeExpedition::GROUPAGE_CA) {
-                            $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agence->id)
-                                ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
-                                ->first();
-                            if ($tarifAgenceGroupage) {
-                                $prixUnitaire = $tarifAgenceGroupage->montant_base;
-                            }
-                        }
-
-                        // Mettre à jour le colis avec le prix_unitaire et prix_total
-                        if ($prixUnitaire !== null) {
-                            $colis->update([
-                                'prix_unitaire' => $prixUnitaire,
-                                'prix_total' => $prixUnitaire * $colis->poids
-                            ]);
-                        }
-                    }
-
-                    // Si pas de désignation, générer à partir des produits
-                    if ($colis->designation == null || $colis->designation == '') {
-                        $colis->update([
-                            'designation' => $colis->articles->pluck('produit.designation')->implode(', '),
-                        ]);
-                    }
                 }
             }
 

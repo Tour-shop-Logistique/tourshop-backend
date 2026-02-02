@@ -43,6 +43,10 @@ class CategoryProduct extends Model
     {
         return $this->hasMany(Produit::class, 'category_id');
     }
+    public function colis(): HasMany
+    {
+        return $this->hasMany(Colis::class, 'category_id');
+    }
 
     public function tarifs(): HasMany
     {

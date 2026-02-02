@@ -68,26 +68,46 @@ class TarifGroupageController extends Controller
             }
 
             $typeExpedition = TypeExpedition::tryFrom($request->type_expedition);
+            $ligne = ($request->has('ligne') && !is_null($request->ligne) && $request->ligne !== '')
+                ? strtolower(trim($request->ligne))
+                : null;
 
-            // Vérifier la restriction pour le type groupage_ca (un seul par backoffice/mode/ligne)
+            // Restriction spéciale pour GROUPAGE_CA : un seul par backoffice
             if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
-                $exists = TarifGroupage::where('backoffice_id', $user->backoffice_id)
+                $existsCA = TarifGroupage::where('backoffice_id', $user->backoffice_id)
                     ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                    ->exists();
+
+                if ($existsCA) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un tarif de type groupage_ca existe déjà pour votre backoffice (limite : un seul par backoffice)."
+                    ], 422);
+                }
+            }
+
+            // Vérifier si un tarif pour cette ligne et ce type existe déjà pour ce backoffice (uniquement si ligne non nulle)
+            if (!is_null($ligne)) {
+                $exists = TarifGroupage::where('backoffice_id', $user->backoffice_id)
+                    ->where('type_expedition', $request->type_expedition)
+                    ->where('category_id', $request->category_id)
+                    ->where('ligne', $ligne)
                     ->exists();
 
                 if ($exists) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Ce tarif groupage_ca existe déjà pour ce mode et cette ligne.'
+                        'message' => "Un tarif pour ce type d'expédition et cette ligne ('" . $ligne . "') existe déjà."
                     ], 422);
                 }
             }
+
 
             $tarif = TarifGroupage::create([
                 'category_id' => $request->category_id,
                 'type_expedition' => $request->type_expedition,
                 'mode' => $request->mode,
-                'ligne' => $request->ligne,
+                'ligne' => $ligne,
                 'montant_base' => $request->montant_base,
                 'pourcentage_prestation' => $request->pourcentage_prestation,
                 'pays' => $request->pays ?? $user->backoffice->pays,
@@ -130,15 +150,59 @@ class TarifGroupageController extends Controller
                 'pourcentage_prestation' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            $tarif->update($request->only([
-                'ligne',
+            $data = $request->only([
                 'mode',
                 'pays',
                 'category_id',
                 'type_expedition',
                 'montant_base',
                 'pourcentage_prestation',
-            ]));
+            ]);
+
+            if ($request->has('ligne') || $request->has('type_expedition')) {
+                $ligne = $request->has('ligne')
+                    ? ((!is_null($request->ligne) && $request->ligne !== '') ? strtolower(trim($request->ligne)) : null)
+                    : $tarif->ligne;
+                $typeExpeditionRaw = $request->type_expedition ?? $tarif->type_expedition;
+                $typeExpedition = $typeExpeditionRaw instanceof TypeExpedition ? $typeExpeditionRaw : TypeExpedition::tryFrom($typeExpeditionRaw);
+
+                // Restriction spéciale pour GROUPAGE_CA : un seul par backoffice
+                if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
+                    $existsCA = TarifGroupage::where('backoffice_id', $tarif->backoffice_id)
+                        ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+                        ->where('id', '!=', $tarif->id)
+                        ->exists();
+
+                    if ($existsCA) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Un autre tarif de type groupage_ca existe déjà pour votre backoffice."
+                        ], 422);
+                    }
+                }
+
+                // Vérifier l'unicité par ligne (uniquement si ligne non nulle)
+                if (!is_null($ligne)) {
+                    $exists = TarifGroupage::where('backoffice_id', $tarif->backoffice_id)
+                        ->where('type_expedition', $typeExpeditionRaw)
+                        ->where('ligne', $ligne)
+                        ->where('id', '!=', $tarif->id)
+                        ->exists();
+
+                    if ($exists) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Un autre tarif pour ce type d'expédition et cette ligne ('" . $ligne . "') existe déjà."
+                        ], 422);
+                    }
+                }
+
+                if ($request->has('ligne')) {
+                    $data['ligne'] = $ligne;
+                }
+            }
+
+            $tarif->update($data);
 
             return response()->json(['success' => true, 'message' => 'Tarif groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {

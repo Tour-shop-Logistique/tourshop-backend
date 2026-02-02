@@ -68,32 +68,45 @@ class AgenceTarifGroupageController extends Controller
                 return response()->json(['success' => false, 'message' => 'Tarif groupage backoffice introuvable ou inactif.'], 404);
             }
 
-            // Vérifier si un tarif agence existe déjà pour ce tarif backoffice
-            $exists = TarifAgenceGroupage::where('agence_id', $agence->id)
-                ->where('tarif_groupage_id', $request->tarif_groupage_id)
-                ->exists();
+            $typeExpedition = $tarifGroupage->type_expedition;
+            $ligne = $tarifGroupage->ligne ? strtolower(trim($tarifGroupage->ligne)) : null;
 
-            if ($exists) {
-                return response()->json(['success' => false, 'message' => 'Ce tarif agence existe déjà pour ce tarif backoffice.'], 422);
-            }
-
-            // Vérifier la restriction pour le type groupage_ca (un seul par agence/type)
-            if ($tarifGroupage->type_expedition === TypeExpedition::GROUPAGE_CA) {
-                $existingTarifGroupageCA = TarifAgenceGroupage::where('agence_id', $agence->id)
+            // Restriction spéciale pour GROUPAGE_CA : un seul par agence
+            if ($typeExpedition === TypeExpedition::GROUPAGE_CA) {
+                $existsCA = TarifAgenceGroupage::where('agence_id', $agence->id)
                     ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
                     ->exists();
 
-                if ($existingTarifGroupageCA) {
-                    return response()->json(['success' => false, 'message' => 'Une agence ne peut avoir qu\'un seul tarif de type groupage_ca.'], 422);
+                if ($existsCA) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un tarif d'agence pour le type groupage_ca existe déjà."
+                    ], 422);
+                }
+            }
+
+            if (!is_null($ligne)) {
+                // Vérifier si un tarif pour cette ligne et ce type existe déjà pour cette agence
+                $exists = TarifAgenceGroupage::where('agence_id', $agence->id)
+                    ->where('type_expedition', $typeExpedition)
+                    ->where('category_id', $tarifGroupage->category_id)
+                    ->where('ligne', $ligne)
+                    ->exists();
+
+                if ($exists) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Un tarif d'agence pour ce type d'expédition, cette categorie et cette ligne ('" . ($ligne ?? 'vide') . "') existe déjà."
+                    ], 422);
                 }
             }
 
             $tarif = TarifAgenceGroupage::create([
                 'agence_id' => $agence->id,
                 'tarif_groupage_id' => $tarifGroupage->id,
-                'type_expedition' => $tarifGroupage->type_expedition,
+                'type_expedition' => $typeExpedition,
                 'mode' => $tarifGroupage->mode,
-                'ligne' => $tarifGroupage->ligne,
+                'ligne' => $ligne,
                 'category_id' => $tarifGroupage->category_id,
                 'pourcentage_prestation' => $request->pourcentage_prestation,
                 'pays' => $tarifGroupage->pays,
