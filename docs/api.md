@@ -94,12 +94,12 @@ POST /api/client/refresh-token
 
 #### Expéditions
 ```http
-GET    /api/client/expeditions              # Lister les expéditions
-POST   /api/client/expeditions/initiate     # Créer une expédition
-GET    /api/client/expeditions/{id}         # Détails d'une expédition
-PUT    /api/client/expeditions/{id}/cancel  # Annuler une expédition
-POST   /api/client/expeditions/simulate     # Simuler un tarif
-GET    /api/client/expeditions/statistics   # Statistiques personnelles
+GET    /api/expedition/client/list              # Lister les expéditions
+POST   /api/expedition/client/initiate          # Initier une expédition
+GET    /api/expedition/client/show/{id}         # Détails d'une expédition
+PUT    /api/expedition/client/cancel/{id}       # Annuler une expédition
+POST   /api/expedition/client/simulate           # Simuler un tarif
+GET    /api/expedition/client/statistics        # Statistiques personnelles
 ```
 
 #### Articles
@@ -134,11 +134,13 @@ POST /api/agence/logout
 
 #### Expéditions
 ```http
-GET    /api/agence/expeditions              # Lister les expéditions
-GET    /api/agence/expeditions/{id}         # Détails expédition
-PUT    /api/agence/expeditions/{id}/validate # Valider expédition
-PUT    /api/agence/expeditions/{id}/refuse   # Refuser expédition
-POST   /api/agence/expeditions/{id}/ship    # Expédier vers entrepôt
+GET    /api/expedition/agence/list              # Lister les expéditions
+POST   /api/expedition/agence/simuler           # Simuler un tarif (AVANT création)
+POST   /api/expedition/agence/create            # Créer une expédition complète
+GET    /api/expedition/agence/show/{id}         # Détails expédition
+PUT    /api/expedition/agence/accept/{id}       # Accepter expédition client
+PUT    /api/expedition/agence/refuse/{id}       # Refuser expédition client
+POST   /api/expedition/agence/ship-to-warehouse/{id} # Expédier vers entrepôt
 ```
 
 #### Tarifs Simple
@@ -270,7 +272,7 @@ GET    /api/backoffice/revenue                # Revenus et commissions
 ### Création d'Expédition (Client)
 
 ```http
-POST /api/client/expeditions/initiate
+POST /api/expedition/client/initiate
 Authorization: Bearer 1|abc123def456...
 Content-Type: application/json
 
@@ -278,20 +280,7 @@ Content-Type: application/json
     "agence_id": "uuid-agence",
     "zone_depart_id": "uuid-zone-depart",
     "zone_destination_id": "uuid-zone-destination",
-    "mode_expedition": "simple",
-    "type_colis": null,
-    "is_enlevement_domicile": true,
-    "coord_enlevement": {
-        "lat": 48.8566,
-        "lng": 2.3522,
-        "adresse": "123 Rue de la Paix, Paris, France"
-    },
-    "is_livraison_domicile": true,
-    "coord_livraison": {
-        "lat": 40.7128,
-        "lng": -74.0060,
-        "adresse": "456 Broadway, New York, USA"
-    },
+    "type_expedition": "simple",
     "description": "Colis contenant des vêtements"
 }
 ```
@@ -337,37 +326,26 @@ Content-Type: application/json
 }
 ```
 
-### Simulation de Tarif
+### Simulation de Tarif (Nouveau Workflow)
 
 ```http
-POST /api/client/expeditions/simulate
+POST /api/expedition/agence/simulate
 Authorization: Bearer 1|abc123def456...
 Content-Type: application/json
 
 {
-    "agence_id": "uuid-agence",
-    "zone_depart_id": "uuid-zone-depart",
-    "zone_destination_id": "uuid-zone-destination",
-    "mode_expedition": "simple",
-    "is_enlevement_domicile": true,
-    "coord_enlevement": {
-        "lat": 48.8566,
-        "lng": 2.3522
-    },
-    "is_livraison_domicile": true,
-    "coord_livraison": {
-        "lat": 40.7128,
-        "lng": -74.0060
-    },
-    "articles": [
+    "pays_depart": "France",
+    "pays_destination": "Côte d'Ivoire",
+    "type_expedition": "groupage_dhd_aerien",
+    "expediteur_ville": "Paris",
+    "destinataire_ville": "Abidjan",
+    "colis": [
         {
-            "designation": "Chemise en coton",
-            "poids": 0.5,
-            "longueur": 30,
-            "largeur": 25,
-            "hauteur": 5,
-            "quantite": 2,
-            "valeur_declaree": 50000
+            "category_id": "uuid-categorie",
+            "poids": 10.5,
+            "longueur": 40,
+            "largeur": 30,
+            "hauteur": 20
         }
     ]
 }
@@ -377,22 +355,25 @@ Content-Type: application/json
 ```json
 {
     "success": true,
-    "message": "Simulation de tarif réussie",
+    "message": "Tarification simulée avec succès",
     "data": {
-        "montant_base": 12000,
-        "montant_prestation": 2400,
-        "montant_expedition": 14400,
-        "frais_enlevement_domicile": 1500,
-        "frais_livraison_domicile": 2000,
-        "frais_emballage": 500,
-        "montant_total": 18400,
-        "devise": "XOF",
-        "details": {
-            "distance_enlevement_km": 3.2,
-            "distance_livraison_km": 5.8,
-            "poids_total_kg": 1.0,
-            "volume_total_cm3": 7500
-        }
+        "success": true,
+        "tarif": {
+            "montant_base": 12000,
+            "pourcentage_prestation": 0,
+            "montant_prestation": 2400,
+            "montant_expedition": 14400,
+            "frais_emballage": 0
+        },
+        "colis": [
+            {
+                "category_id": "uuid-categorie",
+                "poids": 10.5,
+                "prix_unitaire": 1200,
+                "montant_colis_base": 12600,
+                "montant_colis_total": 15120
+            }
+        ]
     }
 }
 ```

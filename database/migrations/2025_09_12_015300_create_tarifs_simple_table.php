@@ -5,8 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use App\Enums\TypeExpedition;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -19,9 +18,12 @@ return new class extends Migration
             $table->enum('type_expedition', [TypeExpedition::class])->default(TypeExpedition::LD);
             $table->decimal('indice', 5, 1);
             $table->string('pays')->nullable();
-            // Prix par zone (JSONB array)
-            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->jsonb('prix_zones');
+            $table->string('zone_destination_id');
+            $table->decimal('montant_base', 12, 2);
+            $table->decimal('pourcentage_prestation', 5, 2)->nullable();
+            $table->decimal('montant_prestation', 12, 2)->nullable();
+            $table->decimal('montant_expedition', 12, 2)->nullable();
+
 
             // Statut
             $table->boolean('actif')->default(true);

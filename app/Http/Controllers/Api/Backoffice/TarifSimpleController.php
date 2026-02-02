@@ -68,18 +68,35 @@ class TarifSimpleController extends Controller
 
             $request->validate([
                 'indice' => ['required', 'numeric', 'min:0'],
-                'prix_zones' => ['required', 'array', 'min:1'],
-                'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
-                'prix_zones.*.montant_base' => ['required', 'numeric', 'min:0'],
-                'prix_zones.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
+                'zone_destination_id' => ['required', 'string', 'exists:zones,id'],
+                'montant_base' => ['required', 'numeric', 'min:0'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
+
+            $backofficeId = $user->backoffice_id;
+            $pays = $user->backoffice->pays;
+
+            // Vérifier si un tarif existe déjà pour cet indice et cette zone destination
+            $exists = TarifSimple::where('backoffice_id', $backofficeId)
+                ->where('indice', $request->indice)
+                ->where('zone_destination_id', $request->zone_destination_id)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Un tarif existe déjà pour cet indice et cette zone de destination."
+                ], 422);
+            }
 
             $tarif = TarifSimple::create([
                 'indice' => $request->indice,
-                'prix_zones' => $request->prix_zones,
-                'type_expedition'=> TypeExpedition::LD->value,
-                'pays' => $user->backoffice->pays,
-                'backoffice_id' => $user->backoffice->id
+                'zone_destination_id' => $request->zone_destination_id,
+                'montant_base' => $request->montant_base,
+                'pourcentage_prestation' => $request->pourcentage_prestation,
+                'type_expedition' => TypeExpedition::LD->value,
+                'pays' => $pays,
+                'backoffice_id' => $backofficeId
             ]);
 
             return response()->json(['success' => true, 'message' => 'Tarif simple créé avec succès.', 'tarif' => $tarif], 201);
@@ -108,20 +125,19 @@ class TarifSimpleController extends Controller
 
             $request->validate([
                 'indice' => ['sometimes', 'numeric', 'min:0'],
-                'prix_zones' => ['sometimes', 'array', 'min:1'],
-                'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
-                'prix_zones.*.montant_base' => ['required', 'numeric', 'min:0'],
-                'prix_zones.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
+                'zone_destination_id' => ['sometimes', 'string', 'exists:zones,id'],
+                'montant_base' => ['sometimes', 'numeric', 'min:0'],
+                'pourcentage_prestation' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            // Stocker les anciennes valeurs pour détecter les changements de pourcentage_prestation
-            $ancienPrixZones = $tarif->prix_zones;
+            $ancienMontantBase = $tarif->montant_base;
+            $ancienPourcentage = $tarif->pourcentage_prestation;
 
-            $tarif->update($request->only(['indice', 'prix_zones']));
+            $tarif->update($request->only(['indice', 'zone_destination_id', 'montant_base', 'pourcentage_prestation']));
 
-            // Vérifier si les prix_zones ont changé et mettre à jour les tarifs d'agence liés
-            if ($request->has('prix_zones')) {
-                $this->mettreAJourTarifsAgence($tarif, $ancienPrixZones, $request->prix_zones);
+            // Vérifier si les montants ont changé et mettre à jour les tarifs d'agence liés
+            if ($tarif->montant_base != $ancienMontantBase || $tarif->pourcentage_prestation != $ancienPourcentage) {
+                $this->mettreAJourTarifsAgence($tarif, $ancienMontantBase, $ancienPourcentage);
             }
 
             return response()->json(['success' => true, 'message' => 'Tarif de base mis à jour.', 'tarif' => $tarif]);
@@ -183,83 +199,26 @@ class TarifSimpleController extends Controller
     /**
      * Mettre à jour les tarifs d'agence liés en cas de changement du tarif de base
      */
-    private function mettreAJourTarifsAgence(TarifSimple $tarif, array $ancienPrixZones, array $nouveauPrixZones)
+    private function mettreAJourTarifsAgence(TarifSimple $tarif, $ancienMontantBase, $ancienPourcentage)
     {
-        // Créer un mapping des anciens prix par zone
-        $anciensPrix = [];
-        foreach ($ancienPrixZones as $zone) {
-            $anciensPrix[$zone['zone_destination_id']] = [
-                'montant_base' => $zone['montant_base'],
-                'pourcentage_prestation' => $zone['pourcentage_prestation']
-            ];
-        }
+        // Différence de pourcentage à appliquer aux agences
+        $deltaPourcentage = $tarif->pourcentage_prestation - $ancienPourcentage;
 
-        // Créer un mapping des nouveaux prix par zone
-        $nouveauxPrix = [];
-        foreach ($nouveauPrixZones as $zone) {
-            $nouveauxPrix[$zone['zone_destination_id']] = [
-                'montant_base' => $zone['montant_base'],
-                'pourcentage_prestation' => $zone['pourcentage_prestation']
-            ];
-        }
-
-        // Calculer les différences de pourcentage par zone
-        $differencesPourcentages = [];
-        $changementsMontant = [];
-        foreach ($nouveauxPrix as $zoneId => $nouveauPrix) {
-            if (isset($anciensPrix[$zoneId])) {
-                $ancienPrix = $anciensPrix[$zoneId];
-
-                // Vérifier les changements de pourcentage
-                $differencePourcentage = $nouveauPrix['pourcentage_prestation'] - $ancienPrix['pourcentage_prestation'];
-                if ($differencePourcentage != 0) {
-                    $differencesPourcentages[$zoneId] = $differencePourcentage;
-                }
-
-                // Vérifier les changements de montant_base
-                if ($nouveauPrix['montant_base'] != $ancienPrix['montant_base']) {
-                    $changementsMontant[$zoneId] = $nouveauPrix['montant_base'];
-                }
-            }
-        }
-
-        // Si aucun changement, sortir
-        if (empty($differencesPourcentages) && empty($changementsMontant)) {
-            return;
-        }
-
-        // Récupérer tous les tarifs d'agence liés à ce tarif simple
+        // Récupérer tous les tarifs d'agence liés à ce tarif simple précis
         $tarifsAgence = TarifAgenceSimple::where('tarif_simple_id', $tarif->id)->get();
 
         foreach ($tarifsAgence as $tarifAgence) {
-            $prixZonesAgence = $tarifAgence->prix_zones ?? [];
-            $modifie = false;
-
-            foreach ($prixZonesAgence as &$zoneAgence) {
-                $zoneId = $zoneAgence['zone_destination_id'];
-
-                // Appliquer les changements de pourcentage
-                if (isset($differencesPourcentages[$zoneId])) {
-                    $zoneAgence['pourcentage_prestation'] += $differencesPourcentages[$zoneId];
-                    // S'assurer que le pourcentage reste dans les limites (0-100)
-                    $zoneAgence['pourcentage_prestation'] = max(0, min(100, $zoneAgence['pourcentage_prestation']));
-                    $modifie = true;
-                }
-
-                // Recalculer les montants si le montant_base du tarif de base a changé
-                if (isset($changementsMontant[$zoneId])) {
-                    $nouveauMontant = $changementsMontant[$zoneId];
-                    $zoneAgence['montant_base'] = $nouveauMontant;
-                    $zoneAgence['montant_prestation'] = round(($nouveauMontant * $zoneAgence['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
-                    $zoneAgence['montant_expedition'] = round($nouveauMontant + $zoneAgence['montant_prestation'], 2, PHP_ROUND_HALF_UP);
-                    $modifie = true;
-                }
+            // Si le montant de base a changé, on le répercute
+            if ($tarif->montant_base != $ancienMontantBase) {
+                $tarifAgence->montant_base = $tarif->montant_base;
             }
 
-            if ($modifie) {
-                $tarifAgence->prix_zones = $prixZonesAgence;
-                $tarifAgence->save();
+            // Si le pourcentage du backoffice a changé, on applique le delta au pourcentage de l'agence
+            if ($deltaPourcentage != 0) {
+                $tarifAgence->pourcentage_prestation = max(0, min(100, $tarifAgence->pourcentage_prestation + $deltaPourcentage));
             }
+
+            $tarifAgence->save(); // Le modèle recalculera automatique les montants dans son boot() saving()
         }
     }
 

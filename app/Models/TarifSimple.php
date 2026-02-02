@@ -30,15 +30,9 @@ class TarifSimple extends Model
 
         // Calculer automatiquement les montants lors de la sauvegarde
         static::saving(function ($model) {
-            if ($model->prix_zones) {
-                $prixZones = $model->prix_zones;
-                foreach ($prixZones as &$zone) {
-                    if (isset($zone['montant_base']) && isset($zone['pourcentage_prestation'])) {
-                        $zone['montant_prestation'] = round(($zone['montant_base'] * $zone['pourcentage_prestation']) / 100, 2, PHP_ROUND_HALF_UP);
-                        $zone['montant_expedition'] = round($zone['montant_base'] + $zone['montant_prestation'], 2, PHP_ROUND_HALF_UP);
-                    }
-                }
-                $model->prix_zones = $prixZones;
+            if (isset($model->montant_base) && isset($model->pourcentage_prestation)) {
+                $model->montant_prestation = round(($model->montant_base * $model->pourcentage_prestation) / 100, 2, PHP_ROUND_HALF_UP);
+                $model->montant_expedition = round($model->montant_base + $model->montant_prestation, 2, PHP_ROUND_HALF_UP);
             }
         });
     }
@@ -49,7 +43,11 @@ class TarifSimple extends Model
     protected $fillable = [
         'indice',
         'type_expedition',
-        'prix_zones',
+        'zone_destination_id',
+        'montant_base',
+        'pourcentage_prestation',
+        'montant_prestation',
+        'montant_expedition',
         'actif',
         'pays',
         'backoffice_id',
@@ -60,7 +58,10 @@ class TarifSimple extends Model
      */
     protected $casts = [
         'indice' => 'decimal:1',
-        'prix_zones' => 'array',
+        'montant_base' => 'float',
+        'pourcentage_prestation' => 'float',
+        'montant_prestation' => 'float',
+        'montant_expedition' => 'float',
         'type_expedition' => TypeExpedition::class,
         'actif' => 'boolean',
     ];
@@ -76,38 +77,16 @@ class TarifSimple extends Model
     /**
      * Scope pour rechercher par critères
      */
-    public function scopePourCriteres($query, $zoneDestination, $indiceTrancheArrondi)
+    public function scopePourCriteres($query, $zoneDestinationId, $indiceTrancheArrondi)
     {
         return $query->where('indice', $indiceTrancheArrondi)
+            ->where('zone_destination_id', $zoneDestinationId)
             ->where('actif', true);
-            // // Vérifier que le tarif contient la zone demandée dans son prix_zones
-            // // Pour PostgreSQL : utiliser jsonb_array_elements pour parcourir le tableau JSONB
-            // ->whereRaw(
-            //     "EXISTS (
-            //         SELECT 1 
-            //         FROM jsonb_array_elements(prix_zones) AS zone
-            //         WHERE zone->>'zone_destination_id' = ?
-            //     )",
-            //     [$zoneDestination]
-            // );
     }
 
-    /**
-     * Obtenir le prix pour une zone spécifique
-     */
-    public function getPrixPourZone($zoneDestinationId)
+    public function zone()
     {
-        if (!$this->prix_zones) {
-            return null;
-        }
-
-        foreach ($this->prix_zones as $zone) {
-            if ($zone['zone_destination_id'] === $zoneDestinationId) {
-                return $zone;
-            }
-        }
-
-        return null;
+        return $this->belongsTo(Zone::class, 'zone_destination_id');
     }
 
     public function backoffice()

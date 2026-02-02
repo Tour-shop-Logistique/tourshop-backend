@@ -69,35 +69,36 @@ class AgenceTarifSimpleController extends Controller
 
             $request->validate([
                 'tarif_simple_id' => ['required', 'uuid', 'exists:tarifs_simple,id'],
-                'prix_zones' => ['required', 'array', 'min:1'],
-                'prix_zones.*.zone_destination_id' => ['required', 'string', 'exists:zones,id'],
-                'prix_zones.*.pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            // Vérifier l'existence du tarif de simple et actif
             $tarifSimple = TarifSimple::actif()->find($request->tarif_simple_id);
             if (!$tarifSimple) {
-                return response()->json(['success' => false, 'message' => 'Tarif de simple introuvable ou inactif.'], 404);
+                return response()->json(['success' => false, 'message' => 'Tarif de base introuvable ou inactif.'], 404);
             }
 
-            // Vérifier que toutes les zones fournies existent dans le tarif de simple
-            $zonesSimple = collect($tarifSimple->prix_zones)->pluck('zone_destination_id')->toArray();
-            $zonesAgence = collect($request->prix_zones)->pluck('zone_destination_id')->toArray();
-            $zonesMissing = array_diff($zonesAgence, $zonesSimple);
-            if (!empty($zonesMissing)) {
-                return response()->json(['success' => false, 'message' => 'Zones non trouvées dans le tarif de simple: ' . implode(', ', $zonesMissing)], 422);
+            // Vérifier si un tarif agence existe déjà pour ce tarif simple
+            $exists = TarifAgenceSimple::where('agence_id', $agence->id)
+                ->where('tarif_simple_id', $tarifSimple->id)
+                ->exists();
+
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Un tarif existe déjà pour cette prestation."
+                ], 422);
             }
 
             $tarif = TarifAgenceSimple::create([
                 'agence_id' => $agence->id,
                 'tarif_simple_id' => $tarifSimple->id,
-                'prix_zones' => $request->prix_zones,
+                'pourcentage_prestation' => $request->pourcentage_prestation,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tarif créé avec succès.',
-                'tarif' => $tarif //->load('tarifSimple')
+                'message' => 'Tarif agence créé avec succès.',
+                'tarif' => $tarif
             ], 201);
         } catch (ValidationException $e) {
             return response()->json([
@@ -144,12 +145,10 @@ class AgenceTarifSimpleController extends Controller
             }
 
             $request->validate([
-                'prix_zones' => ['sometimes', 'array', 'min:1'],
-                'prix_zones.*.zone_destination_id' => ['required_with:prix_zones', 'string', 'exists:zones,id'],
-                'prix_zones.*.pourcentage_prestation' => ['required_with:prix_zones', 'numeric', 'min:0', 'max:100'],
+                'pourcentage_prestation' => ['required', 'numeric', 'min:0', 'max:100'],
             ]);
 
-            $tarif->update($request->only(['prix_zones']));
+            $tarif->update($request->only(['pourcentage_prestation']));
 
             return response()->json([
                 'success' => true,

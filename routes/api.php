@@ -67,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Côté Agence
         Route::prefix('agence')->group(function () {
             Route::get('/list', [AgenceExpeditionController::class, 'listerExpeditions']);
+            Route::post('/simulate', [AgenceExpeditionController::class, 'simulerExpedition']);
             Route::post('/create', [AgenceExpeditionController::class, 'creerExpedition']);
             Route::get('/show/{id}', [AgenceExpeditionController::class, 'voirDetailsExpedition']);
             Route::put('/accept/{id}', [AgenceExpeditionController::class, 'accepterExpedition']);
@@ -130,7 +131,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'show']);
         Route::delete('/delete-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'delete']);
         Route::put('/status-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'toggleStatus']);
-  });
+    });
 
     // Routes backoffice
     Route::prefix('backoffice')->group(function () {

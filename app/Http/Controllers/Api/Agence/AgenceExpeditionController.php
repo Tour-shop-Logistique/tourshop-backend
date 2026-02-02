@@ -110,6 +110,67 @@ class AgenceExpeditionController extends Controller
     }
 
     /**
+     * Simuler le tarif d'une expédition avant enregistrement
+     */
+    public function simulerExpedition(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            if ($user->type !== UserType::AGENCE) {
+                return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            }
+
+            $agence = Agence::where('user_id', $user->id)->first();
+            if (!$agence) {
+                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'pays_depart' => ['required', 'string', 'max:150'],
+                'pays_destination' => ['required', 'string', 'max:150'],
+                'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, TypeExpedition::cases()))],
+                'expediteur_ville' => ['nullable', 'string', 'max:255'],
+                'destinataire_ville' => ['nullable', 'string', 'max:255'],
+                'colis' => ['required', 'array', 'min:1'],
+                'colis.*.category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
+                'colis.*.poids' => ['required', 'numeric', 'min:0'],
+                'colis.*.longueur' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.largeur' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.hauteur' => ['nullable', 'numeric', 'min:0'],
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            }
+
+            $validated = $validator->validated();
+            $validated['agence_id'] = $agence->id;
+
+            $resultat = $this->expeditionTarificationService->simulerTarifExpedition($validated);
+
+            if ($resultat['success']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Tarification simulée avec succès',
+                    'data' => $resultat
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $resultat['message'] ?? 'Erreur lors de la simulation'
+                ], 422);
+            }
+        } catch (\Exception $e) {
+            Log::error('Erreur simulation expédition agence : ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la simulation de l\'expédition',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Créer une nouvelle expédition (côté agence) avec expéditeur et destinataire
      */
     public function creerExpedition(Request $request): JsonResponse

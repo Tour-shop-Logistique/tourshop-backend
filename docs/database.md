@@ -7,11 +7,11 @@ Le schéma de base de données TourShop est conçu pour gérer un écosystème l
 ## 🏗️ Architecture Générale
 
 ### Principes de Conception
-- **UUID Primary Keys** : Pour la sécurité et la scalabilité
-- **Soft Deletes** : Préservation des données historiques
-- **Timestamps** : Traçabilité complète des modifications
-- **JSON Fields** : Flexibilité pour les données complexes
-- **Index Stratégiques** : Optimisation des requêtes fréquentes
+- **UUID Primary Keys** : Utilisé pour la plupart des tables (Agences, Expeditions, Colis, etc.) pour la sécurité et la scalabilité.
+- **Soft Deletes** : Préservation des données historiques (si configuré sur les modèles).
+- **Timestamps** : Traçabilité complète des modifications (`created_at`, `updated_at`).
+- **JSONB Fields** : Utilisé massivement pour les structures de données flexibles (expéditeur, destinataire, articles de colis, tarifs par zone).
+- **Index Stratégiques** : Optimisation des requêtes fréquentes sur les statuts, les références et les clés étrangères.
 
 ## 📊 Structure des Tables
 
@@ -24,270 +24,211 @@ name (string, 255)
 email (string, 255, unique)
 telephone (string, 20, unique)
 password (string, 255)
-type (enum: client, agence, livreur, backoffice, admin)
-email_verified_at (timestamp)
-remember_token (string, 100)
+type (enum: client, agence, livreur, backoffice)
+email_verified_at (timestamp, nullable)
+remember_token (string, 100, nullable)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 #### `agences`
 ```sql
 id (UUID, Primary Key)
 user_id (UUID, Foreign Key → users.id)
-nom (string, 255)
-adresse (text)
-telephone (string, 20)
-email (string, 255)
-pays (string, 100)
-ville (string, 100)
-code_postal (string, 20)
+code_agence (string, 20)
+nom_agence (string)
+description (text, nullable)
+adresse (string)
+ville (string)
+commune (string, nullable)
+pays (string)
+telephone (string, 20, nullable)
 latitude (decimal, 10, 8)
 longitude (decimal, 11, 8)
+horaires (jsonb, nullable)
+photos (jsonb, nullable)
+logo (string, nullable)
 actif (boolean, default: true)
-backoffice_id (UUID, Foreign Key → backoffices.id, nullable)
+message_accueil (text, nullable)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 #### `backoffices`
 ```sql
 id (UUID, Primary Key)
-user_id (UUID, Foreign Key → users.id)
-nom (string, 255)
-adresse (text)
-telephone (string, 20)
-email (string, 255)
-pays (string, 100)
+user_id (UUID, Foreign Key → users.id) -- Administrateur créateur
+nom_organisation (string)
+telephone (string)
+localisation (string, nullable)
+adresse (string)
+ville (string)
+commune (string, nullable)
+pays (string)
+email (string, nullable)
+logo (string, nullable)
 actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-#### `clients`
-```sql
-id (UUID, Primary Key)
-user_id (UUID, Foreign Key → users.id)
-nom (string, 255)
-prenom (string, 255)
-adresse (text)
-telephone (string, 20)
-email (string, 255)
-pays (string, 100)
-ville (string, 100)
-code_postal (string, 20)
-type_client (enum: particulier, entreprise)
-entreprise_nom (string, 255, nullable)
-entreprise_siret (string, 50, nullable)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 #### `livreurs`
 ```sql
 id (UUID, Primary Key)
 user_id (UUID, Foreign Key → users.id)
-nom (string, 255)
-prenom (string, 255)
-telephone (string, 20)
-email (string, 255)
-pays (string, 100)
-ville (string, 100)
-permis_conduire (string, 100)
-vehicule_type (enum: voiture, moto, camionette, camion)
-vehicule_immatriculation (string, 50)
 agence_id (UUID, Foreign Key → agences.id)
-actif (boolean, default: true)
-disponible (boolean, default: true)
+permis_de_conduire (string, nullable)
+type_vehicule (string, nullable) -- Ex: Moto, Voiture
+numero_vehicule (string, nullable) -- Immatriculation
+zone_de_livraison_km (decimal, 5, 2, nullable)
+statut (enum: disponible, en_service, en_pause, hors_service)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 ### 🌍 Géographie & Zones
 
 #### `zones`
 ```sql
-id (UUID, Primary Key)
-nom (string, 255)
-code (string, 10, unique)
-pays (string, 100)
-type (enum: pays, region, ville, zone_specifique)
-parent_id (UUID, Foreign Key → zones.id, nullable)
-niveau (integer, default: 1)
+id (string, Primary Key) -- Souvent un slug ou code (ex: 'zone-1')
+nom (string)
+pays (jsonb) -- Tableau des noms de pays inclus
 actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
-### 📦 Expéditions & Articles
+### 📦 Expéditions & Colis
 
 #### `expeditions`
 ```sql
 id (UUID, Primary Key)
-reference (string, 50, unique)
-code_suivi (string, 20, unique)
-code_validation_reception (string, 6, nullable)
+reference (string, unique) -- Ex: EXP-20250101-1234
+code_suivi_expedition (string, unique, nullable)
+code_validation_reception (string, nullable) -- Code à 6 chiffres
 
 -- Relations
-client_id (UUID, Foreign Key → clients.id)
+user_id (UUID, Foreign Key → users.id) -- Propriétaire/Client
 agence_id (UUID, Foreign Key → agences.id)
-destinataire_id (UUID, Foreign Key → destinataires.id, nullable)
-livreur_enlevement_id (UUID, Foreign Key → livreurs.id, nullable)
-livreur_livraison_id (UUID, Foreign Key → livreurs.id, nullable)
 
--- Zones
-zone_depart_id (UUID, Foreign Key → zones.id)
-zone_destination_id (UUID, Foreign Key → zones.id)
+-- Livreurs pour les différentes étapes
+livreur_enlevement_id (UUID, nullable, Foreign Key → livreurs.id)
+livreur_deplacement_id (UUID, nullable, Foreign Key → livreurs.id)
+livreur_livraison_id (UUID, nullable, Foreign Key → livreurs.id)
 
--- Mode et type
-mode_expedition (enum: simple, groupage)
-type_colis (string, 100, nullable)
+-- Contacts (Dénormalisés en JSON pour historique fidèle)
+expediteur (jsonb) -- {nom_prenom, telephone, email, adresse, ville, etc.}
+destinataire (jsonb) -- {nom_prenom, telephone, email, adresse, ville, etc.}
 
--- Articles et dimensions
-articles (json, nullable) -- [{longueur, largeur, hauteur, volume}]
-photos_articles (json, nullable) -- [urls]
-poids_total (decimal, 8, 2)
-volume_total (decimal, 8, 2)
+-- Localisation
+zone_depart_id (string, nullable)
+pays_depart (string, nullable)
+zone_destination_id (string, nullable)
+pays_destination (string, nullable)
 
--- Tarification
-montant_base (decimal, 10, 2)
-montant_prestation (decimal, 10, 2)
-montant_expedition (decimal, 10, 2)
+-- Mode et Statuts
+type_expedition (string) -- simple (LD), groupage_afrique, groupage_ca, groupage_dhd_aerien, etc.
+statut_expedition (string, default: 'EN_ATTENTE')
+statut_paiement (string, default: 'EN_ATTENTE')
 
--- Options domicile
+-- Financier Principal
+montant_base (decimal, 12, 2)
+pourcentage_prestation (decimal, 5, 2, nullable)
+montant_prestation (decimal, 12, 2)
+montant_expedition (decimal, 12, 2)
+
+-- Frais Additionnels
+frais_enlevement_domicile (decimal, 12, 2)
+frais_livraison_domicile (decimal, 12, 2)
+frais_emballage (decimal, 12, 2)
+frais_enlevement_agence (decimal, 12, 2)
+frais_retard_retrait (decimal, 12, 2)
+frais_douane (decimal, 12, 2)
+
+-- Options de Service
 is_enlevement_domicile (boolean, default: false)
-coord_enlevement (json, nullable) -- {lat, lng, adresse}
+coord_enlevement (string, nullable) -- Adresse/Coordonnées texte
 instructions_enlevement (text, nullable)
-distance_domicile_agence (decimal, 5, 2) -- km
-frais_enlevement_domicile (decimal, 10, 2)
+distance_domicile_agence (decimal, 8, 2, nullable)
 
 is_livraison_domicile (boolean, default: false)
-coord_livraison (json, nullable) -- {lat, lng, adresse}
+coord_livraison (string, nullable)
 instructions_livraison (text, nullable)
-frais_livraison_domicile (decimal, 10, 2)
 
--- Frais additionnels
-frais_emballage (decimal, 10, 2, default: 0)
-delai_retrait (integer, nullable) -- jours
+delai_retrait (string, nullable)
 is_retard_retrait (boolean, default: false)
-frais_retard_retrait (decimal, 10, 2, default: 0)
-
--- Montants finaux
-montant_total_expedition (decimal, 10, 2)
 is_paiement_credit (boolean, default: false)
 
--- Statuts
-statut_expedition (enum: en_attente, accepted, refused, cancelled, 
-                    en_cours_enlevement, recu_agencia, en_transit_entrepot,
-                    expedition_depart, expedition_arrivee, recu_agencia_destination,
-                    en_attente_retrait, en_livraison, livre)
-statut_paiement (enum: en_attente, paye, partiellement_paye, rembourse)
+-- Commissions
+commission_livreur_enlevement (decimal, 12, 2)
+commission_agence_enlevement (decimal, 12, 2)
+commission_livreur_livraison (decimal, 12, 2)
+commission_agence_livraison (decimal, 12, 2)
+commission_agence_retard (decimal, 12, 2)
+commission_tourshop_retard (decimal, 12, 2)
 
--- Dates importantes
+-- Dates du Workflow
 date_prevue_enlevement (timestamp, nullable)
-date_enlevement_reelle (timestamp, nullable)
+date_enlevement_client (timestamp, nullable)
 date_livraison_agence (timestamp, nullable)
 date_deplacement_entrepot (timestamp, nullable)
 date_expedition_depart (timestamp, nullable)
 date_expedition_arrivee (timestamp, nullable)
 date_reception_agence (timestamp, nullable)
-date_retrait_colis (timestamp, nullable)
+date_limite_retrait (timestamp, nullable)
 date_reception_client (timestamp, nullable)
+date_livraison_reelle (timestamp, nullable)
+date_annulation (timestamp, nullable)
+motif_annulation (text, nullable)
 
--- Tracking
-code_suivi_expedition (string, 20, unique)
-photo_livraison (string, 255, nullable)
-signature_destinataire (text, nullable)
-commission_livreur (decimal, 10, 2, default: 0)
-commission_agence (decimal, 10, 2, default: 0)
-
--- Métadonnées
-description (text, nullable)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
-#### `expedition_articles`
+#### `colis`
 ```sql
 id (UUID, Primary Key)
 expedition_id (UUID, Foreign Key → expeditions.id)
-produit_id (UUID, Foreign Key → produits.id, nullable)
-designation (string, 255)
-reference (string, 100, nullable)
-description (text, nullable)
+category_id (UUID, nullable, Foreign Key → category_products.id)
+code_colis (string)
+designation (string, nullable)
+articles (jsonb) -- Tableau d'articles: [{designation, poids, quantite, etc.}]
+photo (string, nullable)
+longueur (decimal, 10, 2) -- cm
+largeur (decimal, 10, 2) -- cm
+hauteur (decimal, 10, 2) -- cm
+volume (decimal, 10, 2) -- cm³
+poids (decimal, 10, 2) -- kg
 
--- Dimensions
-poids (decimal, 8, 2)
-longueur (decimal, 8, 2, nullable)
-largeur (decimal, 8, 2, nullable)
-hauteur (decimal, 8, 2, nullable)
-volume (decimal, 8, 2, nullable)
+-- Tarification individuelle du colis
+prix_emballage (decimal, 10, 2)
+prix_unitaire (decimal, 10, 2) -- prix au kg
+montant_colis_base (decimal, 10, 2)
+pourcentage_prestation (decimal, 10, 2)
+montant_colis_prestation (decimal, 10, 2)
+montant_colis_total (decimal, 10, 2)
 
--- Quantité et valeur
-quantite (integer, default: 1)
-valeur_declaree (decimal, 10, 2, nullable)
-
--- Métadonnées
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
-#### `destinataires`
+### 💰 Tarification Dynamique
+
+#### `tarifs_simple` (Backoffice)
 ```sql
 id (UUID, Primary Key)
-nom (string, 255)
-prenom (string, 255)
-telephone (string, 20)
-email (string, 255, nullable)
-adresse (text)
-pays (string, 100)
-ville (string, 100)
-code_postal (string, 20)
-piece_identite (string, 100, nullable)
+backoffice_id (UUID, Foreign Key → backoffices.id)
+type_expedition (string) -- simple (LD)
+indice (decimal, 5, 1) -- Poids ou Volume pivot
+zone_destination_id (string, Foreign Key → zones.id)
+montant_base (decimal, 12, 2)
+pourcentage_prestation (decimal, 5, 2)
+montant_prestation (decimal, 12, 2)
+montant_expedition (decimal, 12, 2)
+pays (string, nullable)
+actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-### 💰 Tarification
-
-#### `tarifs_simple`
-```sql
-id (UUID, Primary Key)
-indice_tranche (decimal, 8, 2)
-mode_expedition (enum: simple)
-zone_destination_id (UUID, Foreign Key → zones.id)
-montant_base (decimal, 10, 2)
-pourcentage_prestation_base (decimal, 5, 2)
-montant_prestation_base (decimal, 10, 2)
-montant_expedition_base (decimal, 10, 2)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-#### `tarifs_groupage`
-```sql
-id (UUID, Primary Key)
-indice_tranche (decimal, 8, 2)
-mode_expedition (enum: groupage)
-type_colis (string, 100)
-zone_destination_id (UUID, Foreign Key → zones.id)
-montant_base (decimal, 10, 2)
-pourcentage_prestation_base (decimal, 5, 2)
-montant_prestation_base (decimal, 10, 2)
-montant_expedition_base (decimal, 10, 2)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 #### `tarifs_agence_simple`
@@ -295,11 +236,31 @@ deleted_at (timestamp, nullable)
 id (UUID, Primary Key)
 agence_id (UUID, Foreign Key → agences.id)
 tarif_simple_id (UUID, Foreign Key → tarifs_simple.id)
-prix_zones (json) -- [{zone_destination_id, montant_base, pourcentage_prestation_agence, montant_prestation_agence, montant_expedition_agence}]
+indice (decimal, 5, 1) -- Recopie pour perf
+zone_destination_id (string, Foreign Key → zones.id)
+montant_base (decimal, 12, 2)
+pourcentage_prestation (decimal, 5, 2)
+montant_prestation (decimal, 12, 2)
+montant_expedition (decimal, 12, 2)
 actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
+```
+
+#### `tarifs_groupage` (Backoffice)
+```sql
+id (UUID, Primary Key)
+category_id (UUID, Foreign Key → category_products.id)
+type_expedition (string) -- groupage_afrique, groupage_ca, dhd_aerien, etc.
+mode (string, nullable) -- avion, bateau, etc.
+ligne (string, nullable) -- ex: "paris-abidjan"
+montant_base (decimal, 10, 2)
+pourcentage_prestation (decimal, 10, 2)
+montant_prestation (decimal, 10, 2)
+montant_expedition (decimal, 10, 2)
+actif (boolean, default: true)
+created_at (timestamp)
+updated_at (timestamp)
 ```
 
 #### `tarifs_agence_groupage`
@@ -307,11 +268,17 @@ deleted_at (timestamp, nullable)
 id (UUID, Primary Key)
 agence_id (UUID, Foreign Key → agences.id)
 tarif_groupage_id (UUID, Foreign Key → tarifs_groupage.id)
-prix_zones (json) -- [{zone_destination_id, montant_base, pourcentage_prestation_agence, montant_prestation_agence, montant_expedition_agence}]
+category_id (UUID, Foreign Key → category_products.id)
+type_expedition (string)
+mode (string, nullable)
+ligne (string, nullable)
+montant_base (decimal, 10, 2)
+pourcentage_prestation (decimal, 10, 2)
+montant_prestation (decimal, 10, 2)
+montant_expedition (decimal, 10, 2)
 actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 ### 📦 Produits & Catégories
@@ -319,13 +286,11 @@ deleted_at (timestamp, nullable)
 #### `category_products`
 ```sql
 id (UUID, Primary Key)
-nom (string, 255)
-description (text)
-icone (string, 255, nullable)
+nom (string, 150)
+backoffice_id (UUID, Foreign Key → backoffices.id)
 actif (boolean, default: true)
 created_at (timestamp)
 updated_at (timestamp)
-deleted_at (timestamp, nullable)
 ```
 
 #### `produits`
@@ -334,201 +299,29 @@ id (UUID, Primary Key)
 category_id (UUID, Foreign Key → category_products.id)
 nom (string, 255)
 reference (string, 100, unique)
-description (text)
-poids_standard (decimal, 8, 2)
-dimensions_standard (json, nullable) -- {longueur, largeur, hauteur}
-valeur_standard (decimal, 10, 2)
-photo (string, 255, nullable)
-actif (boolean, default: true)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-### 🏢 Configuration Système
-
-#### `grilles_tarifaires`
-```sql
-id (UUID, Primary Key)
-type (enum: enlevement_domicile, livraison_domicile)
-zone_depart_id (UUID, Foreign Key → zones.id)
-distance_min (decimal, 5, 2)
-distance_max (decimal, 5, 2)
-montant (decimal, 10, 2)
-devise (string, 3, default: XOF)
-actif (boolean, default: true)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-#### `frais_emballage`
-```sql
-id (UUID, Primary Key)
-type_emballage (enum: standard, fragile, surdimensionne, special)
-montant (decimal, 10, 2)
 description (text, nullable)
+poids_standard (decimal, 10, 2)
+dimensions_standard (json, nullable) -- {L, l, H}
+valeur_standard (decimal, 10, 2)
+photo (string, nullable)
 actif (boolean, default: true)
-created_at (timestamp)
-updated_at (timestamp)
-deleted_at (timestamp, nullable)
-```
-
-#### `configurations`
-```sql
-id (UUID, Primary Key)
-cle (string, 100, unique)
-valeur (text)
-type_valeur (enum: string, number, boolean, json)
-description (text)
 created_at (timestamp)
 updated_at (timestamp)
 ```
 
 ## 🔗 Relations Principales
 
-### Diagramme de Relations Simplifié
-
-```
-users (1:1) → clients
-users (1:1) → agences
-users (1:1) → livreurs
-users (1:1) → backoffices
-
-clients (1:N) → expeditions
-agences (1:N) → expeditions
-livreurs (1:N) → expeditions (enlevement/livraison)
-destinataires (1:N) → expeditions
-
-zones (1:N) → expeditions (depart/destination)
-zones (1:N) → tarifs_*
-zones (1:N) → grilles_tarifaires
-
-expeditions (1:N) → expedition_articles
-expedition_articles (N:1) → produits
-
-category_products (1:N) → produits
-
-tarifs_simple (1:N) → tarifs_agence_simple
-tarifs_groupage (1:N) → tarifs_agence_groupage
-```
-
-## 📈 Index Stratégiques
-
-### Index de Performance
-```sql
--- Expéditions
-CREATE INDEX idx_expeditions_client_statut ON expeditions(client_id, statut_expedition);
-CREATE INDEX idx_expeditions_agence_statut ON expeditions(agence_id, statut_expedition);
-CREATE INDEX idx_expeditions_livreur ON expeditions(livreur_livraison_id, statut_expedition);
-CREATE INDEX idx_expeditions_zones ON expeditions(zone_destination_id, mode_expedition);
-CREATE INDEX idx_expeditions_dates ON expeditions(created_at, date_reception_client);
-CREATE INDEX idx_expeditions_tracking ON expeditions(code_suivi_expedition);
-
--- Tarifs
-CREATE INDEX idx_tarifs_simple_zone ON tarifs_simple(zone_destination_id, mode_expedition, indice_tranche);
-CREATE INDEX idx_tarifs_groupage_zone ON tarifs_groupage(zone_destination_id, mode_expedition, type_colis, indice_tranche);
-CREATE INDEX idx_tarifs_agence ON tarifs_agence_simple(agence_id, tarif_simple_id);
-
--- Articles
-CREATE INDEX idx_articles_expedition ON expedition_articles(expedition_id);
-CREATE INDEX idx_articles_produit ON expedition_articles(produit_id);
-
--- Zones
-CREATE INDEX idx_zones_pays ON zones(pays, type);
-CREATE INDEX idx_zones_parent ON zones(parent_id);
-```
+- **users** possède son profil via **agences**, **livreurs** ou **backoffices**.
+- **expeditions** est le cœur du système, lié à une agence et un utilisateur, et contient plusieurs **colis**.
+- **colis** est lié à une **category_products** pour déterminer son tarif groupage (DHD).
+- **tarifs_agence_*** sont des extensions personnalisées des **tarifs_*** définis globalement par le backoffice.
 
 ## 🔒 Contraintes et Validation
 
-### Contraintes de Clés Étrangères
-```sql
--- ON DELETE RESTRICT pour préserver l'intégrité
--- ON UPDATE CASCADE pour les changements d'ID
-
--- Soft deletes activés sur toutes les tables principales
--- UUIDs pour éviter les collisions
-```
-
-### Validation des Données
-```sql
--- Enums pour les statuts et types
--- Check constraints pour les montants positifs
--- Unique constraints pour les références
-```
-
-## 📊 Statistiques et Reporting
-
-### Vues Matérialisées
-```sql
--- Statistiques des expéditions par agence
-CREATE MATERIALIZED VIEW stats_expeditions_agences AS
-SELECT 
-    a.id as agence_id,
-    a.nom as agence_nom,
-    COUNT(e.id) as total_expeditions,
-    SUM(e.montant_total_expedition) as total_ca,
-    AVG(e.montant_total_expedition) as panier_moyen,
-    COUNT(CASE WHEN e.statut_expedition = 'livre' THEN 1 END) as expeditions_livrees
-FROM agences a
-LEFT JOIN expeditions e ON a.id = e.agence_id
-WHERE e.deleted_at IS NULL
-GROUP BY a.id, a.nom;
-
--- Performance des livreurs
-CREATE MATERIALIZED VIEW stats_livreurs AS
-SELECT 
-    l.id as livreur_id,
-    l.nom || ' ' || l.prenom as livreur_nom,
-    COUNT(e.id) as total_livraisons,
-    AVG(EXTRACT(EPOCH FROM (e.date_reception_client - e.date_enlevement_reelle))/3600) as temps_moyen_livraison
-FROM livreurs l
-LEFT JOIN expeditions e ON l.id = e.livreur_livraison_id
-WHERE e.statut_expedition = 'livre' AND e.deleted_at IS NULL
-GROUP BY l.id, l.nom, l.prenom;
-```
-
-## 🔄 Migrations et Évolutions
-
-### Versions du Schéma
-- **v1.0** : Structure de base (users, agences, expeditions)
-- **v1.1** : Ajout tarification dynamique
-- **v1.2** : Système de validation par code
-- **v1.3** : Options domicile et gestion retards
-- **v2.0** : Architecture internationale et entrepôts
-
-### Scripts de Migration
-```bash
-# Migration vers nouvelle version
-php artisan migrate --step
-
-# Rollback si nécessaire
-php artisan migrate:rollback --step
-
-# Fresh migration (développement)
-php artisan migrate:fresh --seed
-```
-
-## 🛠️ Maintenance
-
-### Tâches Automatiques
-```bash
-# Nettoyage des données expirées
-php artisan model:prune
-
-# Optimisation des index
-php artisan db:optimize
-
-# Backup automatique
-php artisan db:backup
-```
-
-### Monitoring
-- **Taille des tables** : Surveillance de la croissance
-- **Performance des requêtes** : Identification des lenteurs
-- **Intégrité des données** : Vérification des contraintes
-- **Usage des index** : Analyse des plans d'exécution
+- **UUIDs** systématiques pour l'intégrité globale.
+- **Indexes** sur `reference`, `code_suivi`, `statuts` et clés étrangères pour la performance.
+- **Foreign Keys** avec `onDelete('cascade')` ou `nullOnDelete()` selon le besoin métier.
 
 ---
 
-*Ce schéma est conçu pour évoluer avec TourShop et supporter sa croissance internationale tout en maintenant des performances optimales.*
+*Ce document décrit l'état actuel de la base de données TourShop. Pour toute modification de schéma, veuillez passer par les migrations Laravel.*

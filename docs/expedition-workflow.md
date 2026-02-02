@@ -29,11 +29,37 @@ Le système d'expédition Tour Shop gère le cycle de vie complet des colis, de 
 
 ## Cycle de Vie d'une Expédition
 
-### Étape 1: Création (Client)
+### Étape 1: Simulation du Tarif (Optionnel mais Recommandé)
+
+Avant de créer l'expédition, l'agence ou le client peut simuler le coût total.
 
 ```php
+// AgenceExpeditionController@simulerExpedition
+POST /api/expedition/agence/simuler
+// ClientExpeditionController@simulate
+POST /api/expedition/client/simulate
+```
+
+**Données requises pour simulation:**
+- `pays_depart`, `pays_destination`
+- `type_expedition`
+- `expediteur_ville`, `destinataire_ville` (important pour DHD/Afrique)
+- `colis`: Tableau d'objets avec `category_id`, `poids`, `longueur`, `largeur`, `hauteur`
+
+### Étape 2: Création de l'Expédition
+
+Pour une agence, la création inclut tous les colis immédiatement. Pour un client, elle peut se faire en deux temps (initiation puis ajout d'articles).
+
+#### A. Côté Agence (Création Directe)
+```php
+// AgenceExpeditionController@creerExpedition
+POST /api/expedition/agence/create
+```
+
+#### B. Côté Client (Initiation)
+```php
 // ClientExpeditionController@initiate
-POST /api/client/expeditions/initiate
+POST /api/expedition/client/initiate
 ```
 
 **Données requises:**
@@ -61,7 +87,7 @@ POST /api/client/expeditions/initiate
 
 ```php
 // ExpeditionArticleController@add
-POST /api/expeditions/{expeditionId}/articles
+POST /api/expedition/client/articles
 ```
 
 **Processus:**
@@ -77,8 +103,8 @@ POST /api/expeditions/{expeditionId}/articles
 ### Étape 3: Validation Agence
 
 ```php
-// AgenceExpeditionController@validate
-PUT /api/agence/expeditions/{expedition}/validate
+// AgenceExpeditionController@accepterExpedition
+PUT /api/expedition/agence/accept/{expedition}
 ```
 
 **Décisions possibles:**
@@ -145,7 +171,7 @@ POST /api/livreur/reception-agence/{expedition}/confirm
 
 ```php
 // AgenceExpeditionController@expedierVersEntrepot
-POST /api/agence/expeditions/{expedition}/ship-to-warehouse
+POST /api/expedition/agence/ship-to-warehouse/{id}
 ```
 
 **Processus:**
@@ -438,29 +464,20 @@ public function calculerTarifExpedition(Expedition $expedition)
 
 ### Client
 ```
-GET    /api/client/expeditions              // Lister
-POST   /api/client/expeditions/initiate     // Créer
-GET    /api/client/expeditions/{id}         // Détails
-PUT    /api/client/expeditions/{id}/cancel  // Annuler
-POST   /api/client/expeditions/simulate     // Simuler tarif
-GET    /api/client/expeditions/statistics   // Statistiques
-```
-
-### Articles
-```
-GET    /api/expeditions/{id}/articles       // Lister
-POST   /api/expeditions/{id}/articles       // Ajouter
-PUT    /api/expeditions/{id}/articles/{aid} // Modifier
-DELETE /api/expeditions/{id}/articles/{aid} // Supprimer
-POST   /api/expeditions/simulate            // Simuler avec articles
+GET    /api/expedition/client/list              // Lister
+POST   /api/expedition/client/initiate          // Initier
+GET    /api/expedition/client/show/{id}         // Détails
+PUT    /api/expedition/client/cancel/{id}       // Annuler
+POST   /api/expedition/client/simulate          // Simuler tarif
 ```
 
 ### Agence
 ```
-GET    /api/agence/expeditions              // Lister
-PUT    /api/agence/expeditions/{id}/validate// Valider
-PUT    /api/agence/expeditions/{id}/refuse  // Refuser
-POST   /api/agence/expeditions/{id}/ship    // Expédier
+GET    /api/expedition/agence/list              // Lister
+POST   /api/expedition/agence/simuler           // Simuler tarif
+POST   /api/expedition/agence/create            // Créer complète
+PUT    /api/expedition/agence/accept/{id}       // Accepter client
+PUT    /api/expedition/agence/refuse/{id}       // Refuser client
 ```
 
 ### Livreur

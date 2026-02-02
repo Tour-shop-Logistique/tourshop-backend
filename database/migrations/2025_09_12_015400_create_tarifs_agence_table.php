@@ -23,9 +23,12 @@ return new class extends Migration
             // Indice copié du tarif simple (pour faciliter les requêtes)
             $table->decimal('indice', 5, 1);
 
-            // Prix personnalisés par zone (JSONB array)
-            // Chaque élément: {zone_destination_id, montant_base, pourcentage_prestation, montant_prestation, montant_expedition}
-            $table->jsonb('prix_zones');
+            // Prix personnalisés
+            $table->string('zone_destination_id');
+            $table->decimal('montant_base', 12, 2);
+            $table->decimal('pourcentage_prestation', 5, 2)->nullable();
+            $table->decimal('montant_prestation', 12, 2)->nullable();
+            $table->decimal('montant_expedition', 12, 2)->nullable();
 
             // Statut
             $table->boolean('actif')->default(true);

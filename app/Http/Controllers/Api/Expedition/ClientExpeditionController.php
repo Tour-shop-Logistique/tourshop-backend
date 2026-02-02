@@ -233,16 +233,17 @@ class ClientExpeditionController extends Controller
                 'agence_id' => 'required|uuid|exists:agences,id',
                 'zone_depart_id' => 'required|uuid|exists:zones,id',
                 'zone_destination_id' => 'required|uuid|exists:zones,id',
-                'mode_expedition' => 'required|in:simple,groupage',
-                'type_colis' => 'required_if:mode_expedition,groupage|nullable|string',
-                'articles' => 'required|array|min:1',
-                'articles.*.designation' => 'required|string|max:255',
-                'articles.*.poids' => 'required|numeric|min:0.01',
-                'articles.*.longueur' => 'nullable|numeric|min:0.01',
-                'articles.*.largeur' => 'nullable|numeric|min:0.01',
-                'articles.*.hauteur' => 'nullable|numeric|min:0.01',
-                'articles.*.quantite' => 'required|integer|min:1',
-                'articles.*.produit_id' => 'nullable|uuid|exists:produits,id'
+                'type_expedition' => ['required', 'string', 'in:' . implode(',', array_map(fn($case) => $case->value, \App\Enums\TypeExpedition::cases()))],
+                'expediteur_ville' => ['nullable', 'string', 'max:255'],
+                'destinataire_ville' => ['nullable', 'string', 'max:255'],
+                'colis' => ['required', 'array', 'min:1'],
+                'colis.*.category_id' => ['nullable', 'uuid', 'exists:category_products,id'],
+                'colis.*.poids' => ['required', 'numeric', 'min:0'],
+                'colis.*.longueur' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.largeur' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.hauteur' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.prix_emballage' => ['nullable', 'numeric', 'min:0'],
+                'colis.*.code_colis' => ['nullable', 'string'],
             ]);
 
             if ($validator->fails()) {
@@ -254,38 +255,27 @@ class ClientExpeditionController extends Controller
             // Vérifier que l'agence est active
             $agence = Agence::find($validated['agence_id']);
             if (!$agence || !$agence->actif) {
-                return response()->json(['message' => 'Agence invalide ou inactive'], 422);
+                return response()->json(['success' => false, 'message' => 'Agence invalide ou inactive'], 422);
             }
 
-            // Simuler avec les articles
-            $donneesExpedition = [
-                'mode_expedition' => $validated['mode_expedition'],
-                'zone_depart_id' => $validated['zone_depart_id'],
-                'zone_destination_id' => $validated['zone_destination_id'],
-                'agence_id' => $validated['agence_id']
-            ];
+            $resultat = $this->expeditionTarificationService->simulerTarifExpedition($validated);
 
-            $resultat = $this->expeditionTarificationService->simulerTarifExpedition(
-                $donneesExpedition,
-                $validated['articles']
-            );
-
-            if (!$resultat['success']) {
+            if ($resultat['success']) {
                 return response()->json([
-                    'message' => 'Erreur lors de la simulation du tarif',
-                    'error' => $resultat['message'] ?? 'Tarification indisponible'
+                    'success' => true,
+                    'message' => 'Tarification simulée avec succès',
+                    'data' => $resultat
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $resultat['message'] ?? 'Erreur lors de la simulation'
                 ], 422);
             }
 
-            return response()->json([
-                'message' => 'Simulation de tarif réussie',
-                'data' => $resultat
-            ]);
-
-        } catch (ValidationException $e) {
-            return response()->json(['errors' => $e->errors()], 422);
         } catch (\Exception $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Erreur lors de la simulation du tarif',
                 'error' => $e->getMessage()
             ], 500);

@@ -131,19 +131,11 @@ class ExpeditionTarificationService
         $indiceReference = max($poidsTotalKg, $volumeDivise);
         $indiceArrondi = $this->arrondirIndice($indiceReference);
 
-        $tarifAgence = TarifAgenceSimple::where('agence_id', $expedition->agence_id)
+        $tarif = TarifAgenceSimple::where('agence_id', $expedition->agence_id)
             ->where('indice', $indiceArrondi)
+            ->where('zone_destination_id', $zoneDestination->id)
             ->actif()
             ->first();
-
-        if (!$tarifAgence) {
-            return [
-                'success' => false,
-                'message' => "Aucun tarif trouvé pour l'indice {$indiceArrondi} dans cette agence."
-            ];
-        }
-
-        $tarif = $tarifAgence->getPrixPourZone($zoneDestination->id);
 
         if (!$tarif) {
             return [
@@ -152,10 +144,10 @@ class ExpeditionTarificationService
             ];
         }
 
-        $montantBase = (float) ($tarif['montant_base'] ?? 0);
-        $pourcentagePrestation = (float) ($tarif['pourcentage_prestation'] ?? 0);
-        $montantPrestation = (float) ($tarif['montant_prestation'] ?? ($montantBase * $pourcentagePrestation / 100));
-        $montantExpedition = (float) ($tarif['montant_expedition'] ?? ($montantBase + $montantPrestation));
+        $montantBase = (float) ($tarif->montant_base ?? 0);
+        $pourcentagePrestation = (float) ($tarif->pourcentage_prestation ?? 0);
+        $montantPrestation = (float) ($tarif->montant_prestation ?? ($montantBase * $pourcentagePrestation / 100));
+        $montantExpedition = (float) ($tarif->montant_expedition ?? ($montantBase + $montantPrestation));
         $fraisEmballage = $expedition->getFraisEmballageTotal();
 
         return [
@@ -381,6 +373,290 @@ class ExpeditionTarificationService
 
 
     /**
+     * Calcule le tarif d'une expédition à partir de données brutes (sans enregistrer en BD)
+     */
+    public function simulerTarifExpedition(array $validated): array
+    {
+        $typeExpedition = $validated['type_expedition'];
+        $agenceId = $validated['agence_id'];
+        $paysDepart = $validated['pays_depart'] ?? null;
+        $paysDestination = $validated['pays_destination'] ?? null;
+
+        $zoneDepart = $paysDepart
+            ? $this->zoneService->getZoneByCountry($paysDepart)
+            : (!empty($validated['zone_depart_id']) ? $this->zoneService->getZoneById($validated['zone_depart_id']) : null);
+
+        $zoneDestination = $paysDestination
+            ? $this->zoneService->getZoneByCountry($paysDestination)
+            : (!empty($validated['zone_destination_id']) ? $this->zoneService->getZoneById($validated['zone_destination_id']) : null);
+
+        if (!$zoneDepart || !$zoneDestination) {
+            return [
+                'success' => false,
+                'message' => 'Zone de départ ou de destination introuvable.'
+            ];
+        }
+
+        // Si pays non fourni, on le prend de la zone
+        $paysDestination = $paysDestination ?? ($zoneDestination->pays[0] ?? '');
+
+        // Transformer les données de colis en objets de simulation simples
+        $colisSimules = collect($validated['colis'])->map(function ($c) {
+            $longueur = (float) ($c['longueur'] ?? 0);
+            $largeur = (float) ($c['largeur'] ?? 0);
+            $hauteur = (float) ($c['hauteur'] ?? 0);
+            return (object) [
+                'category_id' => $c['category_id'] ?? null,
+                'poids' => (float) $c['poids'],
+                'longueur' => $longueur,
+                'largeur' => $largeur,
+                'hauteur' => $hauteur,
+                'volume' => $longueur * $largeur * $hauteur,
+            ];
+        });
+
+        $poidsTotal = $colisSimules->sum('poids');
+        $volumeTotal = $colisSimules->sum('volume');
+
+        $resultat = match ($typeExpedition) {
+            TypeExpedition::LD->value => $this->simulerTarifSimple($agenceId, $zoneDestination->id, $poidsTotal, $volumeTotal),
+            TypeExpedition::GROUPAGE_AFRIQUE->value => $this->simulerTarifGroupageAfrique($agenceId, $paysDestination, $validated['destinataire_ville'] ?? '', $colisSimules),
+            TypeExpedition::GROUPAGE_CA->value => $this->simulerTarifGroupageCA($agenceId, $colisSimules),
+            TypeExpedition::GROUPAGE_DHD_AERIEN->value, TypeExpedition::GROUPAGE_DHD_MARITIME->value => $this->simulerTarifGroupageDHD($agenceId, $typeExpedition, $validated['expediteur_ville'] ?? '', $validated['destinataire_ville'] ?? '', $colisSimules),
+            default => [
+                'success' => false,
+                'message' => 'Type d\'expédition non pris en charge pour la simulation'
+            ],
+        };
+
+        return $resultat;
+    }
+
+    private function simulerTarifSimple(string $agenceId, string $zoneDestinationId, float $poidsTotal, float $volumeTotal): array
+    {
+        $volumeDivise = $volumeTotal > 0 ? ($volumeTotal / 5000) : 0;
+        $indiceReference = max($poidsTotal, $volumeDivise);
+        $indiceArrondi = $this->arrondirIndice($indiceReference);
+
+        $tarif = TarifAgenceSimple::where('agence_id', $agenceId)
+            ->where('indice', $indiceArrondi)
+            ->where('zone_destination_id', $zoneDestinationId)
+            ->actif()
+            ->first();
+
+        if (!$tarif) {
+            return [
+                'success' => false,
+                'message' => "Aucun tarif trouvé pour l'indice {$indiceArrondi} dans la zone de destination.",
+            ];
+        }
+
+        $montantBase = (float) ($tarif->montant_base ?? 0);
+        $pourcentagePrestation = (float) ($tarif->pourcentage_prestation ?? 0);
+        $montantPrestation = (float) ($tarif->montant_prestation ?? ($montantBase * $pourcentagePrestation / 100));
+        $montantExpedition = (float) ($tarif->montant_expedition ?? ($montantBase + $montantPrestation));
+
+        return [
+            'success' => true,
+            'tarif' => [
+                'montant_base' => round($montantBase, 2, PHP_ROUND_HALF_UP),
+                'pourcentage_prestation' => round($pourcentagePrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_prestation' => round($montantPrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_expedition' => round($montantExpedition, 2, PHP_ROUND_HALF_UP),
+            ],
+        ];
+    }
+
+    private function simulerTarifGroupageAfrique(string $agenceId, string $paysDestination, string $villeDestination, $colisSimules): array
+    {
+        $poidsTotal = $colisSimules->sum('poids');
+        $paysDest = strtolower(trim($paysDestination));
+        $villeDest = strtolower(trim($villeDestination));
+
+        $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agenceId)
+            ->where('type_expedition', TypeExpedition::GROUPAGE_AFRIQUE)
+            ->get()
+            ->filter(function ($tag) use ($paysDest, $villeDest) {
+                $paysTarif = strtolower(trim($tag->pays . " " . $tag->ville ?? ''));
+                return !empty($paysTarif) &&
+                    (str_contains($paysTarif, $paysDest . " " . $villeDest) || str_contains($paysDest . " " . $villeDest, $paysTarif));
+            })
+            ->first();
+
+        if (!$tarifAgenceGroupage) {
+            return [
+                'success' => false,
+                'message' => "Aucun tarif groupage Afrique trouvé pour cette destination."
+            ];
+        }
+
+        $montantBaseUnitaire = (float) ($tarifAgenceGroupage->montant_base ?? 0);
+        $pourcentagePrestation = (float) ($tarifAgenceGroupage->pourcentage_prestation ?? 0);
+
+        $montantBase = $poidsTotal * $montantBaseUnitaire;
+        $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
+        $montantExpedition = $montantBase + $montantPrestation;
+
+        $simulationColis = $colisSimules->map(function ($c) use ($montantBaseUnitaire, $pourcentagePrestation) {
+            $mColisBase = $c->poids * $montantBaseUnitaire;
+            $mColisPrestation = ($mColisBase * $pourcentagePrestation) / 100;
+            return [
+                'category_id' => $c->category_id,
+                'poids' => $c->poids,
+                'longueur' => $c->longueur,
+                'largeur' => $c->largeur,
+                'hauteur' => $c->hauteur,
+                'volume' => $c->volume,
+                'prix_unitaire' => $montantBaseUnitaire,
+                'montant_colis_base' => $mColisBase,
+                'pourcentage_prestation' => $pourcentagePrestation,
+                'montant_colis_prestation' => $mColisPrestation,
+                'montant_colis_total' => $mColisBase + $mColisPrestation
+            ];
+        });
+
+        return [
+            'success' => true,
+            'tarif' => [
+                'montant_base' => round($montantBase, 2, PHP_ROUND_HALF_UP),
+                'pourcentage_prestation' => round($pourcentagePrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_prestation' => round($montantPrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_expedition' => round($montantExpedition, 2, PHP_ROUND_HALF_UP)
+            ],
+            'colis' => $simulationColis
+        ];
+    }
+
+    private function simulerTarifGroupageCA(string $agenceId, $colisSimules): array
+    {
+        $poidsTotal = $colisSimules->sum('poids');
+        $tarifAgenceGroupage = TarifAgenceGroupage::pourAgence($agenceId)
+            ->where('type_expedition', TypeExpedition::GROUPAGE_CA)
+            ->first();
+
+        if (!$tarifAgenceGroupage) {
+            return [
+                'success' => false,
+                'message' => "Aucun tarif groupage CA trouvé pour cette agence."
+            ];
+        }
+
+        $montantBaseUnitaire = (float) ($tarifAgenceGroupage->montant_base ?? 0);
+        $pourcentagePrestation = (float) ($tarifAgenceGroupage->pourcentage_prestation ?? 0);
+
+        $montantBase = $poidsTotal * $montantBaseUnitaire;
+        $montantPrestation = ($montantBase * $pourcentagePrestation) / 100;
+        $montantExpedition = $montantBase + $montantPrestation;
+
+        $simulationColis = $colisSimules->map(function ($c) use ($montantBaseUnitaire, $pourcentagePrestation) {
+            $mColisBase = $c->poids * $montantBaseUnitaire;
+            $mColisPrestation = ($mColisBase * $pourcentagePrestation) / 100;
+            return [
+                'category_id' => $c->category_id,
+                'poids' => $c->poids,
+                'longueur' => $c->longueur,
+                'largeur' => $c->largeur,
+                'hauteur' => $c->hauteur,
+                'volume' => $c->volume,
+                'prix_unitaire' => $montantBaseUnitaire,
+                'montant_colis_base' => $mColisBase,
+                'pourcentage_prestation' => $pourcentagePrestation,
+                'montant_colis_prestation' => $mColisPrestation,
+                'montant_colis_total' => $mColisBase + $mColisPrestation
+            ];
+        });
+
+        return [
+            'success' => true,
+            'tarif' => [
+                'montant_base' => round($montantBase, 2, PHP_ROUND_HALF_UP),
+                'pourcentage_prestation' => round($pourcentagePrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_prestation' => round($montantPrestation, 2, PHP_ROUND_HALF_UP),
+                'montant_expedition' => round($montantExpedition, 2, PHP_ROUND_HALF_UP)
+            ],
+            'colis' => $simulationColis
+        ];
+    }
+
+    private function simulerTarifGroupageDHD(string $agenceId, string $typeExpedition, string $villeDepart, string $villeDestination, $colisSimules): array
+    {
+        $vDepart = strtolower(trim($villeDepart));
+        $vDest = strtolower(trim($villeDestination));
+
+        if (empty($vDepart) || empty($vDest)) {
+            return [
+                'success' => false,
+                'message' => 'Villes de départ ou de destination manquantes pour former la ligne.'
+            ];
+        }
+
+        $ligneRoute = $vDepart . '-' . $vDest;
+        $montantBaseTotal = 0;
+        $montantPrestationTotal = 0;
+        $simulationColis = [];
+
+        foreach ($colisSimules as $c) {
+            if (!$c->category_id) {
+                return [
+                    'success' => false,
+                    'message' => "Un colis n'a pas de catégorie associée."
+                ];
+            }
+
+            $tarif = TarifAgenceGroupage::pourAgence($agenceId)
+                ->where('type_expedition', $typeExpedition)
+                ->where('category_id', $c->category_id)
+                ->where('ligne', $ligneRoute)
+                ->actif()
+                ->first();
+
+            if (!$tarif) {
+                return [
+                    'success' => false,
+                    'message' => "Aucun tarif trouvé pour une catégorie sur la ligne {$ligneRoute}."
+                ];
+            }
+
+            $prixKg = (float) $tarif->montant_base;
+            $pourcentagePrestation = (float) $tarif->pourcentage_prestation;
+
+            $mColisBase = $prixKg * $c->poids;
+            $mColisPrestation = ($mColisBase * $pourcentagePrestation) / 100;
+
+            $montantBaseTotal += $mColisBase;
+            $montantPrestationTotal += $mColisPrestation;
+
+            $simulationColis[] = [
+                'category_id' => $c->category_id,
+                'poids' => $c->poids,
+                'longueur' => $c->longueur,
+                'largeur' => $c->largeur,
+                'hauteur' => $c->hauteur,
+                'volume' => $c->volume,
+                'prix_unitaire' => $prixKg,
+                'montant_colis_base' => $mColisBase,
+                'pourcentage_prestation' => $pourcentagePrestation,
+                'montant_colis_prestation' => $mColisPrestation,
+                'montant_colis_total' => $mColisBase + $mColisPrestation
+            ];
+        }
+
+        $montantExpeditionTotal = $montantBaseTotal + $montantPrestationTotal;
+
+        return [
+            'success' => true,
+            'tarif' => [
+                'montant_base' => round($montantBaseTotal, 2, PHP_ROUND_HALF_UP),
+                'pourcentage_prestation' => 0,
+                'montant_prestation' => round($montantPrestationTotal, 2, PHP_ROUND_HALF_UP),
+                'montant_expedition' => round($montantExpeditionTotal, 2, PHP_ROUND_HALF_UP)
+            ],
+            'colis' => $simulationColis
+        ];
+    }
+
+
+    /**
      * Calcule les commissions pour une expédition
      */
     public function calculerCommissions(Expedition $expedition): array
@@ -434,5 +710,4 @@ class ExpeditionTarificationService
 
         return $commissions;
     }
-
 }
