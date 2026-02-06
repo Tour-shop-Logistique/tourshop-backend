@@ -28,9 +28,9 @@ return new class extends Migration {
             $table->jsonb('destinataire');
 
             // Localisation
-            $table->string('zone_depart_id')->nullable()->index();
+            // $table->string('zone_depart_id')->nullable()->index();
             $table->string('pays_depart')->nullable();
-            $table->string('zone_destination_id')->nullable()->index();
+            // $table->string('zone_destination_id')->nullable()->index();
             $table->string('pays_destination')->nullable();
 
             // Type et Statuts

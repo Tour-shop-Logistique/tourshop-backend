@@ -76,6 +76,7 @@ class ProduitsController extends Controller
                 'designation' => $request->designation,
                 'reference' => $request->reference,
                 'backoffice_id' => $user->backoffice->id ?? null,
+                'actif' => true,
             ]);
 
             return response()->json(['success' => true, 'message' => 'Produit ajouté.', 'product' => $product], 201);
@@ -100,6 +101,7 @@ class ProduitsController extends Controller
             }
 
             $request->validate([
+                'category_id' => ['sometimes', 'uuid', 'exists:category_products,id'],
                 'designation' => ['sometimes', 'string', 'max:150'],
                 'reference' => [
                     'sometimes',
@@ -111,10 +113,9 @@ class ProduitsController extends Controller
                             return $q->where('backoffice_id', $user->backoffice_id);
                         }),
                 ],
-                'actif' => ['sometimes', 'boolean'],
             ]);
 
-            $product->update($request->only(['designation', 'reference', 'actif']));
+            $product->update($request->only(['category_id', 'designation', 'reference']));
             return response()->json(['success' => true, 'message' => 'Produit mis à jour.', 'product' => $product]);
         } catch (ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Erreur de validation des données.', 'errors' => $e->errors()], 422);

@@ -23,8 +23,8 @@ return new class extends Migration {
             $table->uuid('backoffice_id')->nullable();
             $table->timestamps();
 
-            $table->foreign('category_id')->references('id')->on('category_products')->cascadeOnDelete();
-            $table->foreign('backoffice_id')->references('id')->on('backoffices')->nullOnDelete();
+            $table->foreign('category_id')->references('id')->on('category_products')->cascadeOnDelete()->cascadeOnUpdate();
+            $table->foreign('backoffice_id')->references('id')->on('backoffices')->nullOnDelete()->cascadeOnUpdate();
             $table->index(['category_id']);
             $table->index(['backoffice_id']);
         });

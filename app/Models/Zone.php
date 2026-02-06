@@ -37,6 +37,11 @@ class Zone extends Model
         return $this->hasMany(TarifSimple::class, 'zone_destination_id');
     }
 
+    public function tarifsAgence(): HasMany
+    {
+        return $this->hasMany(TarifAgenceSimple::class, 'zone_destination_id');
+    }
+
     /**
      * Vérifie si un pays appartient à cette zone
      */

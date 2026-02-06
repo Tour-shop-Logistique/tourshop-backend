@@ -52,7 +52,7 @@ class ZoneController extends Controller
             }
 
             $request->validate([
-                'id' => ['required', 'string', 'regex:/^Z[1-8]$/', 'unique:zones,id'],
+                'id' => ['required', 'string', 'unique:zones,id'],
                 'nom' => ['required', 'string', 'max:255'],
                 'pays' => ['required', 'array', 'min:1'],
                 'pays.*' => ['string', 'max:150'],
@@ -129,6 +129,14 @@ class ZoneController extends Controller
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            // Vérifier si la zone est utilisée dans des tarifs
+            if ($zone->tarifsBase()->count() > 0 || $zone->tarifsAgence()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cette zone car elle est liée à des tarifs actifs.'
+                ], 422);
             }
 
             // Vider le cache avant suppression

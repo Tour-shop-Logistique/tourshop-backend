@@ -29,9 +29,9 @@ return new class extends Migration {
             $table->timestamps();
 
             // Contraintes de clés étrangères
-            $table->foreign('agence_id')->references('id')->on('agences')->nullOnDelete();
-            $table->foreign('category_id')->references('id')->on('category_products')->nullOnDelete();
-            $table->foreign('tarif_groupage_id')->references('id')->on('tarifs_groupage')->nullOnDelete();
+            $table->foreign('agence_id')->references('id')->on('agences')->nullOnDelete()->cascadeOnUpdate();
+            $table->foreign('category_id')->references('id')->on('category_products')->nullOnDelete()->cascadeOnUpdate();
+            $table->foreign('tarif_groupage_id')->references('id')->on('tarifs_groupage')->nullOnDelete()->cascadeOnUpdate();
 
             // Contrainte d'unicité : une agence ne peut avoir qu'un seul tarif pour un tarif groupage backoffice donné
             $table->unique(['agence_id', 'tarif_groupage_id']);

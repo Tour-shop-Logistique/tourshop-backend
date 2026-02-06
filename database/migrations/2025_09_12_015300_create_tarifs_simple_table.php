@@ -19,6 +19,7 @@ return new class extends Migration {
             $table->decimal('indice', 5, 1);
             $table->string('pays')->nullable();
             $table->string('zone_destination_id');
+            $table->foreign('zone_destination_id')->references('id')->on('zones')->onDelete('cascade')->onUpdate('cascade');
             $table->decimal('montant_base', 12, 2);
             $table->decimal('pourcentage_prestation', 5, 2)->nullable();
             $table->decimal('montant_prestation', 12, 2)->nullable();

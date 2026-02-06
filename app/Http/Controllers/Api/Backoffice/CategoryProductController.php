@@ -127,6 +127,21 @@ class CategoryProductController extends Controller
                 return response()->json(['success' => false, 'message' => 'Cette catégorie n\'appartient pas à votre backoffice.'], 403);
             }
 
+            // Vérifier si la catégorie contient des produits ou des tarifs
+            if ($category->produits()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cette catégorie car elle contient encore des produits.'
+                ], 422);
+            }
+
+            if ($category->tarifs()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Impossible de supprimer cette catégorie car elle est liée à des tarifs activement définis.'
+                ], 422);
+            }
+
             $category->delete();
             return response()->json(['success' => true, 'message' => 'Catégorie supprimée.']);
         } catch (Exception $e) {

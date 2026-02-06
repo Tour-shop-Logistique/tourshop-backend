@@ -32,12 +32,12 @@ class Expedition extends Model
         'reference',
 
         // Expediteur
-        'zone_depart_id',
+        // 'zone_depart_id',
         'pays_depart',
         'expediteur', // JSON
 
         // Destinataire
-        'zone_destination_id',
+        // 'zone_destination_id',
         'pays_destination',
         'destinataire', // JSON
 
@@ -186,16 +186,6 @@ class Expedition extends Model
     public function livreurLivraison(): BelongsTo
     {
         return $this->belongsTo(User::class, 'livreur_livraison_id', 'id');
-    }
-
-    public function zoneDepart(): BelongsTo
-    {
-        return $this->belongsTo(Zone::class, 'zone_depart_id', 'id');
-    }
-
-    public function zoneDestination(): BelongsTo
-    {
-        return $this->belongsTo(Zone::class, 'zone_destination_id', 'id');
     }
 
 

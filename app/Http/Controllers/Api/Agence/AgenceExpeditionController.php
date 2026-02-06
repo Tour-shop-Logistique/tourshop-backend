@@ -246,15 +246,12 @@ class AgenceExpeditionController extends Controller
                 }
             }
 
-            $zoneDepart = $this->zoneService->getZoneByCountry($validated['pays_depart']);
-            $zoneDestination = $this->zoneService->getZoneByCountry($validated['pays_destination']);
-
-            if (!$zoneDepart || !$zoneDestination) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Zone de départ ou de destination introuvable pour les pays spécifiés.'
-                ], 422);
-            }
+            // if (!$zoneDepart || !$zoneDestination) {
+            //     return response()->json([
+            //         'success' => false,
+            //         'message' => 'Zone de départ ou de destination introuvable pour les pays spécifiés.'
+            //     ], 422);
+            // }
 
             // 1. Préparer les données JSON pour l'expéditeur
             $expediteurData = [
@@ -286,8 +283,8 @@ class AgenceExpeditionController extends Controller
             $expeditionData = [
                 'user_id' => $user->id,
                 'agence_id' => $agence->id,
-                'zone_depart_id' => $zoneDepart->id,
-                'zone_destination_id' => $zoneDestination->id,
+                // 'zone_depart_id' => $zoneDepart->id,
+                // 'zone_destination_id' => $zoneDestination->id,
                 'pays_depart' => $validated['pays_depart'],
                 'pays_destination' => $validated['pays_destination'],
                 'expediteur' => $expediteurData,
@@ -383,7 +380,7 @@ class AgenceExpeditionController extends Controller
             }
 
             $expedition = Expedition::pourAgence($agence->id)
-                ->with(['user', 'zoneDepart', 'zoneDestination'])
+                ->with(['colis'])
                 ->withLivreurs()
                 ->find($id);
 

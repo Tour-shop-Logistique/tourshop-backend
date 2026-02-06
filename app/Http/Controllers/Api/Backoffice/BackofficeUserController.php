@@ -87,7 +87,7 @@ class BackofficeUserController extends Controller
                 'prenoms' => ['required', 'string', 'max:255'],
                 'telephone' => ['required', 'string', 'unique:users,telephone'],
                 'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users'],
-                'password' => ['required', 'string', 'min:8', 'confirmed'],
+                'password' => ['required', 'string', 'min:4', 'confirmed'],
                 'type' => ['required', 'in:backoffice'],
             ]);
 

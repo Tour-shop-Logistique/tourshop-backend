@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -35,8 +34,9 @@ return new class extends Migration
             $table->timestamps();
 
             // Contraintes de clés étrangères
-            $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
-            $table->foreign('tarif_simple_id')->references('id')->on('tarifs_simple')->onDelete('cascade');
+            $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade')->onUpdate('cascade');
+            $table->foreign('tarif_simple_id')->references('id')->on('tarifs_simple')->onDelete('cascade')->onUpdate('cascade');
+            $table->foreign('zone_destination_id')->references('id')->on('zones')->onDelete('cascade')->onUpdate('cascade');
 
             // Contrainte d'unicité : une agence ne peut avoir qu'un seul tarif par tarif simple
             $table->unique(['agence_id', 'tarif_simple_id']);
