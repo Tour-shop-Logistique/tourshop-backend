@@ -34,7 +34,7 @@ class TarifGroupageController extends Controller
                 });
             }
 
-            $tarifs = $query->with('category:id,nom')->get();
+            $tarifs = $query->with('category:id,nom')->orderBy('type_expedition')->get();
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {
             Log::error('Erreur listing tarifs groupage : ' . $e->getMessage());

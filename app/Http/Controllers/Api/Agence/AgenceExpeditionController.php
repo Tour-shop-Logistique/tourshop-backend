@@ -40,18 +40,40 @@ class AgenceExpeditionController extends Controller
     {
         try {
             $user = $request->user();
-            if ($user->type !== UserType::AGENCE) {
+            $targetAgenceId = null;
+
+            if ($user->type === UserType::AGENCE) {
+                // Pour une agence, on utilise son propre ID
+                $targetAgenceId = $user->agence_id;
+            } elseif ($user->type === UserType::BACKOFFICE || $user->type === UserType::ADMIN) {
+                // Pour le backoffice ou admin, on utilise l'agence_id passé en paramètre nommé
+                $targetAgenceId = $request->agence_id;
+
+                if (!$targetAgenceId) {
+                    return response()->json(['success' => false, 'message' => 'L\'identifiant de l\'agence est requis.'], 422);
+                }
+
+                // Vérification du pays pour le Backoffice
+                if ($user->type === UserType::BACKOFFICE) {
+                    $agence = Agence::find($targetAgenceId);
+                    if (!$agence || !$user->backoffice || $agence->pays !== $user->backoffice->pays) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Accès non autorisé : cette agence n\'appartient pas à votre pays.'
+                        ], 403);
+                    }
+                }
+            } else {
                 return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
             }
 
-            $agence = Agence::where('user_id', $user->id)->first();
-            if (!$agence) {
-                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
+            if (!$targetAgenceId) {
+                return response()->json(['success' => false, 'message' => 'Agence non spécifiée'], 404);
             }
 
-            $query = Expedition::pourAgence($agence->id)
+            $query = Expedition::pourAgence($targetAgenceId)
                 ->withLivreurs()
-                ->with('colis');
+                ->with(['colis.category:id,nom']);
 
             // Filtrage par statut
             if ($request->has('statut_expedition') && $request->statut_expedition) {
@@ -81,7 +103,7 @@ class AgenceExpeditionController extends Controller
                 });
             }
 
-            $paginator = $query->orderBy('created_at', 'desc')->paginate(20);
+            $paginator = $query->orderBy('created_at', 'desc')->paginate(10);
 
             // Masquer les IDs des livreurs car les relations livreur sont chargées
             $expeditions = collect($paginator->items())->map(function ($expedition) {
@@ -380,7 +402,7 @@ class AgenceExpeditionController extends Controller
             }
 
             $expedition = Expedition::pourAgence($agence->id)
-                ->with(['colis'])
+                ->with(['colis.category:id,nom'])
                 ->withLivreurs()
                 ->find($id);
 

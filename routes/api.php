@@ -105,8 +105,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('agence')->group(function () {
         Route::get('/list', [AgenceController::class, 'listAgences']);
         Route::post('/setup', [AgenceController::class, 'setupAgence']);
-        Route::get('/show', [AgenceController::class, 'showAgence']);
+        Route::get('/show/{id?}', [AgenceController::class, 'showAgence']);
         Route::put('/update', [AgenceController::class, 'updateAgence']);
+        Route::put('/status/{id?}', [AgenceController::class, 'toggleStatus']);
 
         // Gestion des utilisateurs de l'agence (réservé à l'admin créateur)
         Route::get('/list-users', [AgenceUserController::class, 'listUsers']);

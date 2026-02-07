@@ -36,11 +36,26 @@ class AgenceTarifSimpleController extends Controller
                 $query->where('agence_id', $agence->id);
             }
 
-            if ($request->filled('agence_id')) {
-                $query->where('agence_id', $request->agence_id);
+            // Vérification du pays pour les utilisateurs BACKOFFICE
+            if ($user->type === UserType::BACKOFFICE) {
+                $agence = Agence::where('id', $request->agence_id)->first();
+                if (!$user->backoffice || $agence->pays !== $user->backoffice->pays) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Accès non autorisé : cette agence n\'appartient pas à votre pays.'
+                    ], 403);
+                }
+                 if ($request->filled('agence_id')) {
+                    $query->where('agence_id', $request->agence_id);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'L\'agence_id est obligatoire.'
+                    ], 422);
+                }
             }
 
-            $tarifs = $query->get();
+            $tarifs = $query->with(['zone:id,nom'])->orderBy('indice')->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {

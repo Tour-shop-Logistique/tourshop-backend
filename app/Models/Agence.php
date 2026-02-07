@@ -66,24 +66,16 @@ class Agence extends Model
         return $this->hasMany(User::class, "agence_id")->notDeleted();
     }
 
-
     public function tarifsSimple()
     {
         // Une agence peut avoir plusieurs tarifs
-        return $this->hasMany(TarifAgenceSimple::class);
+        return $this->hasMany(TarifAgenceSimple::class, "agence_id");
     }
 
     public function tarifsGroupage()
     {
         // Une agence peut avoir plusieurs tarifs
-        return $this->hasMany(TarifAgenceGroupage::class);
-    }
-
-    public function scopeDansZone($query, $latitude, $longitude)
-    {
-        return $query->selectRaw(
-            "*, (6371 * acos(cos(radians($latitude)) * cos(radians(latitude)) * cos(radians(longitude) - radians($longitude)) + sin(radians($latitude)) * sin(radians(latitude)))) AS distance"
-        )->havingRaw('distance <= zone_couverture_km');
+        return $this->hasMany(TarifAgenceGroupage::class, "agence_id");
     }
 
     public function scopeActif($query)

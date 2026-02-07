@@ -27,12 +27,10 @@ class AgenceController extends Controller
 
             $query = Agence::query();
 
-            if ($request->filled('pays')) {
-                $query->where('pays', $request->pays);
-            }
-
             if ($user->type === UserType::BACKOFFICE) {
                 $query->where('pays', $user->backoffice->pays);
+            } else if ($request->filled('pays')) {
+                $query->where('pays', $request->pays);
             }
 
             $agences = $query->orderBy('nom_agence')->get();
@@ -163,50 +161,66 @@ class AgenceController extends Controller
      * Affiche les informations de l'agence associée à l'utilisateur authentifié.
      * Accessible uniquement par un utilisateur de type 'agence'.
      */
-    public function showAgence(Request $request)
+    public function showAgence(Request $request, $id = null)
     {
         try {
             $user = $request->user();
+            $agence = null;
 
-            // Vérifie si l'utilisateur authentifié est bien de type 'agence'
-            if ($user->type !== UserType::AGENCE) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Accès non autorisé. Seules les agences peuvent consulter leur profil.'
-                ], 403); // Statut HTTP 403 Forbidden
+            // 1. Déterminer quelle agence afficher
+            if ($id) {
+                // Si un ID est fourni, on cherche cette agence
+                if (!in_array($user->type, [UserType::ADMIN, UserType::BACKOFFICE])) {
+                    return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+                }
+                $agence = Agence::where('id', $id)->first();
+            } else {
+                // Si pas d'ID, on affiche l'agence de l'utilisateur connecté (pour type AGENCE)
+                if ($user->type !== UserType::AGENCE) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Accès non autorisé. Seules les agences peuvent consulter leur profil sans ID.'
+                    ], 403);
+                }
+
+                if (!$user->agence_id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Aucune agence rattachée à cet utilisateur.'
+                    ], 404);
+                }
+                $agence = Agence::where('id', $user->agence_id)->first();
             }
 
-            // Récupère l'agence liée via l'agence_id (admin et membres)
-            if (!$user->agence_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Aucune agence rattachée à cet utilisateur.'
-                ], 404);
-            }
-
-            $agence = Agence::find($user->agence_id);
-
-            // Si aucune agence n'est trouvée pour cet utilisateur
+            // 2. Vérifier si l'agence existe
             if (!$agence) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Profil d\'agence introuvable pour cet utilisateur.'
-                ], 404); // Statut HTTP 404 Not Found
+                    'message' => 'Agence introuvable.'
+                ], 404);
             }
 
-            // Retourne les informations de l'agence
+            // 3. Vérification de sécurité pour le BACKOFFICE (même pays)
+            if ($user->type === UserType::BACKOFFICE) {
+                if (!$user->backoffice || $agence->pays !== $user->backoffice->pays) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Accès non autorisé : cette agence n\'appartient pas à votre pays.'
+                    ], 403);
+                }
+            }
+
             return response()->json([
                 'success' => true,
-                'agence' => $agence // Convertit le modèle en tableau pour la réponse JSON
+                'agence' => $agence
             ]);
         } catch (Exception $e) {
-            // Log l'erreur pour le débogage et retourne une réponse générique
             Log::error('Erreur lors de la récupération du profil agence : ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur inattendue est survenue lors de la récupération du profil agence. Veuillez réessayer ultérieurement.',
                 'errors' => $e->getMessage()
-            ], 500); // Statut HTTP 500 Internal Server Error
+            ], 500);
         }
     }
 
@@ -312,4 +326,57 @@ class AgenceController extends Controller
         }
     }
 
+    /**
+     * Change le statut actif/inactif d'une agence.
+     * Si un ID est fourni, il est utilisé (réservé aux admins/backoffice).
+     * Sinon, utilise l'agence de l'utilisateur connecté (si admin agence).
+     */
+    public function toggleStatus(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user();
+            $agence = null;
+
+            if ($id) {
+                // Seuls ADMIN ou BACKOFFICE peuvent cibler une agence par ID
+                if (!in_array($user->type, [UserType::ADMIN, UserType::BACKOFFICE])) {
+                    return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+                }
+                $agence = Agence::find($id);
+            } else {
+                // Un admin d'agence peut toggler sa propre agence
+                if ($user->type !== UserType::AGENCE || !$user->isAgenceAdmin()) {
+                    return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+                }
+                $agence = Agence::where('id', $user->agence_id)->first();
+            }
+
+            if (!$agence) {
+                return response()->json(['success' => false, 'message' => 'Agence introuvable.'], 404);
+            }
+
+            // Vérification du pays pour les utilisateurs BACKOFFICE
+            if ($user->type === UserType::BACKOFFICE) {
+                if (!$user->backoffice || $agence->pays !== $user->backoffice->pays) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Accès non autorisé : cette agence n\'appartient pas à votre pays.'
+                    ], 403);
+                }
+            }
+
+            $agence->actif = !$agence->actif;
+            $agence->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => $agence->actif ? 'Agence activée avec succès.' : 'Agence désactivée avec succès.',
+                'actif' => $agence->actif,
+                'agence' => $agence
+            ]);
+        } catch (Exception $e) {
+            Log::error('Erreur lors du changement de statut de l\'agence : ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
+        }
+    }
 }
