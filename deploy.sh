@@ -4,32 +4,36 @@
 # Assurez-vous d'avoir les droits d'exécution : chmod +x deploy.sh
 
 echo "🚀 Démarrage du déploiement..."
+echo ""
 
 # 1. Récupérer la dernière version du code
-echo "📥 Récupération du code depuis Git..."
+echo "📥 1- Récupération du code depuis Git..."
 git pull origin main
+echo ""
 
 # 2. Reconstruire et démarrer les conteneurs
-echo "🏗️ Reconstruction des images Docker..."
+echo "🏗️ 2- Reconstruction des images Docker..."
 docker-compose up -d --build
+echo ""
 
 # 3. Installer les dépendances PHP (uniquement en production)
-echo "📦 Installation des dépendances Composer..."
-docker-compose exec -T app composer install --no-dev --optimize-autoloader
-docker-compose exec app php artisan key:generate
+echo "📦 3- Installation des dépendances Composer..."
+docker-compose exec app composer install
+echo ""
 
 # 4. Fixer les permissions des dossiers de stockage
-echo "🔑 Configuration des permissions (storage/cache)..."
-docker-compose exec -T app chmod -R 777 storage bootstrap/cache
+echo "🔑 4- Configuration des permissions (storage/cache)..."
+docker-compose exec app chmod -R 777 storage bootstrap/cache
+echo ""
 
 # 5. Exécuter les migrations de la base de données
 # echo "🗄️ Exécution des migrations..."
 # docker-compose exec -T app php artisan migrate --force
 
 # 6. Optimiser Laravel pour la production
-echo "⚡ Optimisation du cache Laravel..."
-docker-compose exec -T app php artisan config:cache
-docker-compose exec -T app php artisan route:cache
-docker-compose exec -T app php artisan view:cache
-
+echo "⚡ 5- Optimisation du cache Laravel..."
+docker-compose exec app php artisan config:cache
+docker-compose exec app php artisan route:cache
+docker-compose exec app php artisan view:cache
+echo ""
 echo "✅ Déploiement terminé avec succès !"
