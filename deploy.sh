@@ -18,6 +18,7 @@ echo ""
 
 # 3. Installer les dépendances PHP (uniquement en production)
 echo "📦 3- Installation des dépendances Composer..."
+docker-compose exec app git config --global --add safe.directory /var/www
 docker-compose exec app composer install
 echo ""
 
@@ -26,14 +27,4 @@ echo "🔑 4- Configuration des permissions (storage/cache)..."
 docker-compose exec app chmod -R 777 storage bootstrap/cache
 echo ""
 
-# 5. Exécuter les migrations de la base de données
-# echo "🗄️ Exécution des migrations..."
-# docker-compose exec -T app php artisan migrate --force
-
-# 6. Optimiser Laravel pour la production
-echo "⚡ 5- Optimisation du cache Laravel..."
-docker-compose exec app php artisan config:cache
-docker-compose exec app php artisan route:cache
-docker-compose exec app php artisan view:cache
-echo ""
 echo "✅ Déploiement terminé avec succès !"

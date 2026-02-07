@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # Service PHP pour l'application Laravel
