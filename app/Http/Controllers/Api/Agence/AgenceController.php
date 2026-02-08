@@ -210,6 +210,11 @@ class AgenceController extends Controller
                 }
             }
 
+            // $agenceResponse = $agence->toArray();
+            // if ($agence->logo) {
+            //     $agenceResponse['logo_url'] = url('storage/' . $agence->logo);
+            // }
+
             return response()->json([
                 'success' => true,
                 'agence' => $agence
