@@ -304,8 +304,17 @@ class AgenceController extends Controller
                 $request->merge(['logo' => null]);
             }
 
-            // Met à jour l'agence avec les données validées
-            $agence->update($request->all());
+            // Met à jour l'agence avec les données validées (sauf le logo qui est géré séparément)
+            $dataToUpdate = $request->except('logo');
+
+            // Ajouter le logo seulement s'il a été traité
+            if ($request->hasFile('logo') && isset($logoPath)) {
+                $dataToUpdate['logo'] = $logoPath;
+            } elseif ($request->has('logo') && $request->logo === null) {
+                $dataToUpdate['logo'] = null;
+            }
+
+            $agence->update($dataToUpdate);
 
             // Retourne une réponse de succès avec les informations de l'agence mises à jour
             return response()->json([
