@@ -111,7 +111,7 @@ class AgenceController extends Controller
             // Gestion du logo
             $logoPath = null;
             if ($request->hasFile('logo')) {
-                $logoPath = $request->file('logo')->store('agences/logos', 'public');
+                $logoPath = $request->file('logo')->store('agences/logos', 'supabase');
             }
 
             // Crée l'agence
@@ -290,16 +290,16 @@ class AgenceController extends Controller
             // Gestion du logo pour la mise à jour
             if ($request->hasFile('logo')) {
                 // Supprimer l'ancien logo s'il existe
-                if ($agence->logo && Storage::disk('public')->exists($agence->logo)) {
-                    Storage::disk('public')->delete($agence->logo);
+                if ($agence->logo && Storage::disk('supabase')->exists($agence->logo)) {
+                    Storage::disk('supabase')->delete($agence->logo);
                 }
                 // Stocker le nouveau logo
-                $logoPath = $request->file('logo')->store('agences/logos', 'public');
+                $logoPath = $request->file('logo')->store('agences/logos', 'supabase');
                 $request->merge(['logo' => $logoPath]);
             } elseif ($request->has('logo') && $request->logo === null) {
                 // Supprimer le logo si explicitement mis à null
-                if ($agence->logo && Storage::disk('public')->exists($agence->logo)) {
-                    Storage::disk('public')->delete($agence->logo);
+                if ($agence->logo && Storage::disk('supabase')->exists($agence->logo)) {
+                    Storage::disk('supabase')->delete($agence->logo);
                 }
                 $request->merge(['logo' => null]);
             }
