@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Zone extends Model
 {
@@ -14,10 +15,18 @@ class Zone extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    // Pas de génération automatique d'UUID: l'id est fourni (ex: Z1..Z8)
+    /**
+     * Méthode utilisée pour générer un UUID avant la création d'une nouvelle zone.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($model) {
+            $model->{$model->getKeyName()} = (string) Str::uuid();
+        });
+    }
 
     protected $fillable = [
-        'id',
         'nom',
         'pays',
         'actif'

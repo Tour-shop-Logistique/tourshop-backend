@@ -52,7 +52,7 @@ RUN chown -R www-data:www-data storage bootstrap/cache
 RUN chmod -R 775 storage bootstrap/cache
 
 # # 10. Exposer les ports
-EXPOSE 80 443
+EXPOSE 443
 
 # # 11. Commande de démarrage
 # CMD ["apache2-foreground"]

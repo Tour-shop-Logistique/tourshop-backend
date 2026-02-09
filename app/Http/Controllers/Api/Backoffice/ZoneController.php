@@ -41,7 +41,7 @@ class ZoneController extends Controller
     }
 
     /**
-     * Créer une zone (id string: Z1..Z8)
+     * Créer une zone (UUID auto-généré)
      */
     public function addZone(Request $request)
     {
@@ -52,14 +52,12 @@ class ZoneController extends Controller
             }
 
             $request->validate([
-                'id' => ['required', 'string', 'unique:zones,id'],
                 'nom' => ['required', 'string', 'max:255'],
                 'pays' => ['required', 'array', 'min:1'],
                 'pays.*' => ['string', 'max:150'],
             ]);
 
             $zone = Zone::create([
-                'id' => $request->id,
                 'nom' => $request->nom,
                 'pays' => $request->pays,
             ]);
