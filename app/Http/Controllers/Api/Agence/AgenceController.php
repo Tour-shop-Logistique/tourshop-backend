@@ -13,9 +13,16 @@ use App\Enums\ColisStatus;
 use Illuminate\Support\Facades\Log;
 use Exception; // Importer la classe Exception pour la gestion des erreurs
 use Illuminate\Support\Facades\Storage;
+use App\Services\SupabaseStorageService;
 
 class AgenceController extends Controller
 {
+    protected SupabaseStorageService $supabaseStorage;
+
+    public function __construct(SupabaseStorageService $supabaseStorage)
+    {
+        $this->supabaseStorage = $supabaseStorage;
+    }
 
     public function listAgences(Request $request)
     {
@@ -111,7 +118,14 @@ class AgenceController extends Controller
             // Gestion du logo
             $logoPath = null;
             if ($request->hasFile('logo')) {
-                $logoPath = $request->file('logo')->store('agences/logos', 'supabase');
+                $logoPath = $this->supabaseStorage->upload($request->file('logo'), 'agences/logos');
+
+                if (!$logoPath) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de l\'upload du logo vers Supabase.'
+                    ], 500);
+                }
             }
 
             // Crée l'agence
@@ -210,11 +224,6 @@ class AgenceController extends Controller
                 }
             }
 
-            // $agenceResponse = $agence->toArray();
-            // if ($agence->logo) {
-            //     $agenceResponse['logo_url'] = url('storage/' . $agence->logo);
-            // }
-
             return response()->json([
                 'success' => true,
                 'agence' => $agence
@@ -290,16 +299,26 @@ class AgenceController extends Controller
             // Gestion du logo pour la mise à jour
             if ($request->hasFile('logo')) {
                 // Supprimer l'ancien logo s'il existe
-                if ($agence->logo && Storage::disk('supabase')->exists($agence->logo)) {
-                    Storage::disk('supabase')->delete($agence->logo);
+                $oldLogo = $agence->getRawOriginal('logo');
+                if ($oldLogo) {
+                    $this->supabaseStorage->delete($oldLogo);
                 }
                 // Stocker le nouveau logo
-                $logoPath = $request->file('logo')->store('agences/logos', 'supabase');
+                $logoPath = $this->supabaseStorage->upload($request->file('logo'), 'agences/logos');
+
+                if (!$logoPath) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de l\'upload du logo.'
+                    ], 500);
+                }
+
                 $request->merge(['logo' => $logoPath]);
             } elseif ($request->has('logo') && $request->logo === null) {
                 // Supprimer le logo si explicitement mis à null
-                if ($agence->logo && Storage::disk('supabase')->exists($agence->logo)) {
-                    Storage::disk('supabase')->delete($agence->logo);
+                $oldLogo = $agence->getRawOriginal('logo');
+                if ($oldLogo) {
+                    $this->supabaseStorage->delete($oldLogo);
                 }
                 $request->merge(['logo' => null]);
             }

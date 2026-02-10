@@ -10,9 +10,16 @@ use App\Models\Backoffice;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Exception;
+use App\Services\SupabaseStorageService;
 
 class BackofficeController extends Controller
 {
+    protected SupabaseStorageService $supabaseStorage;
+
+    public function __construct(SupabaseStorageService $supabaseStorage)
+    {
+        $this->supabaseStorage = $supabaseStorage;
+    }
 
     /**
      * Configure le backoffice pour un utilisateur de type 'backoffice'.
@@ -57,14 +64,21 @@ class BackofficeController extends Controller
                 'ville' => ['required', 'string', 'max:255'],
                 'commune' => ['nullable', 'string', 'max:255'],
                 'pays' => ['required', 'string', 'max:255'],
-                'email' => ['required', 'email', 'max:255'],
+                'email' => ['nullable', 'email', 'max:255'],
                 'logo' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,svg', 'max:2048'], // 2MB max
             ]);
 
             // Gestion de l'upload du logo si fourni
             $logoPath = null;
             if ($request->hasFile('logo')) {
-                $logoPath = $request->file('logo')->store('backoffices/logos', 'public');
+                $logoPath = $this->supabaseStorage->upload($request->file('logo'), 'backoffices/logos');
+
+                if (!$logoPath) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de l\'upload du logo.'
+                    ], 500);
+                }
             }
 
             // Créer le backoffice dans la table dédiée
@@ -175,7 +189,7 @@ class BackofficeController extends Controller
             }
 
             // Valide les données d'entrée de la requête pour la mise à jour
-             $request->validate([
+            $request->validate([
                 'nom_organisation' => ['sometimes', 'string', 'max:255'],
                 'telephone' => ['sometimes', 'string', 'max:20'],
                 'adresse' => ['sometimes', 'string', 'max:255'],
@@ -188,13 +202,24 @@ class BackofficeController extends Controller
             ]);
 
             // Gestion de l'upload du logo si fourni
-            $updateData = $request->all();
+            $updateData = $request->except('logo');
             if ($request->hasFile('logo')) {
                 // Supprimer l'ancien logo si existant
-                if ($backoffice->logo && Storage::disk('public')->exists($backoffice->logo)) {
-                    Storage::disk('public')->delete($backoffice->logo);
+                $oldLogo = $backoffice->getRawOriginal('logo');
+                if ($oldLogo) {
+                    $this->supabaseStorage->delete($oldLogo);
                 }
-                $updateData['logo'] = $request->file('logo')->store('backoffices/logos', 'public');
+
+                $logoPath = $this->supabaseStorage->upload($request->file('logo'), 'backoffices/logos');
+
+                if (!$logoPath) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Erreur lors de l\'upload du logo.'
+                    ], 500);
+                }
+
+                $updateData['logo'] = $logoPath;
             }
 
             // Met à jour le backoffice

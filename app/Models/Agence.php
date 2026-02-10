@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Agence extends Model
 {
@@ -81,5 +82,25 @@ class Agence extends Model
     public function scopeActif($query)
     {
         return $query->where('actif', true);
+    }
+
+    protected function logo(): Attribute
+    {
+        return Attribute::make(
+            get: function ($value) {
+                if (!$value)
+                    return null;
+
+                // Si le logo commence déjà par http, c'est une URL complète
+                if (str_starts_with($value, 'http')) {
+                    return $value;
+                }
+
+                $projectUrl = rtrim(config('supabase.url'), '/');
+                $bucket = config('supabase.bucket');
+
+                return "{$projectUrl}/storage/v1/object/public/{$bucket}/{$value}";
+            },
+        );
     }
 }
