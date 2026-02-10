@@ -14,11 +14,10 @@ class AppServiceProvider extends ServiceProvider
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
+    public function boot(\Illuminate\Routing\UrlGenerator $url): void
     {
-        //
+        if (config('app.env') === 'production') {
+            $url->forceScheme('https');
+        }
     }
 }

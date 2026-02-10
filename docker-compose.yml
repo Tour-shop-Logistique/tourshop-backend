@@ -1,5 +1,5 @@
 services:
-  # Service unique combinant PHP et Serveur Web (Apache)
+  # Service PHP-Apache (Local Development)
   app:
     build:
       context: ./
@@ -7,9 +7,14 @@ services:
     container_name: tourshop-app
     restart: unless-stopped
     ports:
-      - "443:443"
-    # volumes:
-    #   - ./storage:/var/www/html/storage
+      - "8000:80" # Map port 80 (inside) to 8000 (outside)
+    environment:
+      - PORT=80
+      - APP_ENV=local
+      - APP_DEBUG=true
+    volumes:
+      - .:/var/www/html
+      - ./storage:/var/www/html/storage
     networks:
       - tourshop-network
 

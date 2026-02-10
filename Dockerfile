@@ -3,13 +3,6 @@ FROM php:8.1-apache
 
 # 1. Activation des modules Apache
 RUN a2enmod rewrite
-RUN a2enmod ssl
-
-# 1b. Génération d'un certificat SSL auto-signé (pour dev/test)
-RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/ssl/private/apache-selfsigned.key \
-    -out /etc/ssl/certs/apache-selfsigned.crt \
-    -subj "/C=FR/ST=State/L=City/O=TourShop/CN=localhost"
 
 # 2. Installation des dépendances système (Git, Zip, PostgreSQL, etc.)
 RUN apt-get update && apt-get install -y \
@@ -20,7 +13,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     git \
-    curl
+    curl \
+    libpq-dev
 
 # 3. Nettoyage du cache apt
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -36,12 +30,13 @@ ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
+# 6b. Configuration du port Apache pour Render (écoute sur le port défini par PORT, par défaut 80 ou 10000)
+# Render définit dynamiquement le port via la variable d'environnement PORT (souvent 10000)
+RUN sed -s -i 's/80/${PORT}/g' /etc/apache2/conf-available/docker-php.conf /etc/apache2/sites-available/*.conf
+RUN sed -s -i 's/Listen 80/Listen ${PORT}/g' /etc/apache2/ports.conf
+
 # 7. Définition du dossier de travail
 WORKDIR /var/www/html
-
-# 7b. Copier la configuration SSL et activer le site HTTPS
-COPY docker/apache/default-ssl.conf /etc/apache2/sites-available/default-ssl.conf
-RUN a2ensite default-ssl
 
 # 8. Copie du code dans le conteneur
 COPY . .
@@ -51,8 +46,12 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev
 RUN chown -R www-data:www-data storage bootstrap/cache
 RUN chmod -R 775 storage bootstrap/cache
 
-# # 10. Exposer les ports
-EXPOSE 443
+# 10. Script d'entrée
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# # 11. Commande de démarrage
-# CMD ["apache2-foreground"]
+# 11. Exposer le port (Render l'utilisera)
+EXPOSE 80
+
+# 12. Commande de démarrage
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
