@@ -49,7 +49,8 @@ return [
         'X-Requested-With',
         'Accept',
         'X-XSRF-TOKEN',
-        'X-Socket-Id'
+        'X-Socket-Id',
+        'ngrok-skip-browser-warning'
     ],
 
     'exposed_headers' => [
