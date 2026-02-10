@@ -25,13 +25,21 @@ class ZoneController extends Controller
     public function listZones(Request $request)
     {
         try {
-            // $user = $request->user();
-            // if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN, UserType::AGENCE])) {
-            //     return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
-            // }
+            $user = $request->user();
 
-            $query = Zone::query();
-            $zones = $query->get();
+            // Restriction : Seuls les backoffices et les agences peuvent récupérer les zones
+            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::AGENCE])) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            // Récupération de l'ID du backoffice associé à l'utilisateur
+            $backofficeId = $user->backoffice_id;
+
+            if (!$backofficeId) {
+                return response()->json(['success' => false, 'message' => 'Aucun backoffice associé à votre compte.'], 403);
+            }
+
+            $zones = Zone::where('backoffice_id', $backofficeId)->get();
 
             return response()->json(['success' => true, 'zones' => $zones]);
         } catch (Exception $e) {
@@ -51,6 +59,11 @@ class ZoneController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
+            // Vérifier que l'utilisateur a un backoffice_id
+            if (!$user->backoffice_id && $user->type !== UserType::ADMIN) {
+                return response()->json(['success' => false, 'message' => 'Vous devez être rattaché à un backoffice pour créer une zone.'], 403);
+            }
+
             $request->validate([
                 'nom' => ['required', 'string', 'max:255'],
                 'pays' => ['required', 'array', 'min:1'],
@@ -60,6 +73,7 @@ class ZoneController extends Controller
             $zone = Zone::create([
                 'nom' => $request->nom,
                 'pays' => $request->pays,
+                'backoffice_id' => $user->backoffice_id,
             ]);
 
             // Vider le cache des zones
@@ -80,6 +94,10 @@ class ZoneController extends Controller
     public function showZone(Request $request, Zone $zone)
     {
         try {
+            $user = $request->user();
+            if ($user->type !== UserType::ADMIN && $zone->backoffice_id !== $user->backoffice_id) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé à cette zone.'], 403);
+            }
             return response()->json(['success' => true, 'zone' => $zone]);
         } catch (Exception $e) {
             Log::error('Erreur affichage zone : ' . $e->getMessage());
@@ -96,6 +114,10 @@ class ZoneController extends Controller
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            if ($user->type !== UserType::ADMIN && $zone->backoffice_id !== $user->backoffice_id) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé à cette zone.'], 403);
             }
 
             $request->validate([
@@ -129,6 +151,10 @@ class ZoneController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
+            if ($user->type !== UserType::ADMIN && $zone->backoffice_id !== $user->backoffice_id) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé à cette zone.'], 403);
+            }
+
             // Vérifier si la zone est utilisée dans des tarifs
             if ($zone->tarifsBase()->count() > 0 || $zone->tarifsAgence()->count() > 0) {
                 return response()->json([
@@ -157,6 +183,10 @@ class ZoneController extends Controller
             $user = $request->user();
             if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            if ($user->type !== UserType::ADMIN && $zone->backoffice_id !== $user->backoffice_id) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé à cette zone.'], 403);
             }
 
             $zone->actif = !$zone->actif;

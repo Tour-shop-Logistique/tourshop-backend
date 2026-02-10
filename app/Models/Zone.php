@@ -29,13 +29,22 @@ class Zone extends Model
     protected $fillable = [
         'nom',
         'pays',
-        'actif'
+        'actif',
+        'backoffice_id'
     ];
 
     protected $casts = [
         'pays' => 'array',
         'actif' => 'boolean'
     ];
+
+    /**
+     * Chaque zone appartient à un backoffice
+     */
+    public function backoffice()
+    {
+        return $this->belongsTo(Backoffice::class);
+    }
 
     /**
      * Une zone peut avoir plusieurs tarifs

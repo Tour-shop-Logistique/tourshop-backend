@@ -13,6 +13,8 @@ return new class extends Migration
             $table->string('nom');
             $table->jsonb('pays');
             $table->boolean('actif')->default(true);
+            $table->string('backoffice_id')->nullable();
+            $table->foreign('backoffice_id')->references('id')->on('backoffices')->onDelete('cascade');
             $table->timestamps();
         });
     }
