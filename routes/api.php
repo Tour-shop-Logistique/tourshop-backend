@@ -13,7 +13,9 @@ use App\Http\Controllers\Api\Backoffice\CategoryProductController;
 use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
+use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
 use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
+use App\Http\Controllers\Api\Agence\AgenceColisController;
 use App\Http\Controllers\Api\Expedition\ClientExpeditionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -132,6 +134,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/show-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'show']);
         Route::delete('/delete-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'delete']);
         Route::put('/status-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'toggleStatus']);
+
+        // Gestion des colis de l'agence
+        Route::get('/list-colis', [AgenceColisController::class, 'colis']);
+        Route::get('/show-colis/{id}', [AgenceColisController::class, 'show']);
     });
 
     // Routes backoffice
@@ -147,6 +153,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/edit-user/{user}', [BackofficeUserController::class, 'editUser']);
         Route::put('/status-user/{user}', [BackofficeUserController::class, 'toggleStatusUser']);
         Route::delete('/delete-user/{user}', [BackofficeUserController::class, 'deleteUser']);
+
+        // Gestion des colis pour le contrôle backoffice
+        Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
+        Route::get('/show-colis/{id}', [BackofficeColisController::class, 'showColis']);
     });
 
     // Routes tarification par le backoffice

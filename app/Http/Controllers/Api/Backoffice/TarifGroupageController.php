@@ -150,6 +150,9 @@ class TarifGroupageController extends Controller
                 'pourcentage_prestation' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             ]);
 
+            $ancienMontantBase = $tarif->montant_base;
+            $ancienPourcentage = $tarif->pourcentage_prestation;
+
             $data = $request->only([
                 'mode',
                 'pays',
@@ -203,6 +206,11 @@ class TarifGroupageController extends Controller
             }
 
             $tarif->update($data);
+
+            // Si le montant de base ou le pourcentage a changé, on répercute sur les agences
+            if ($tarif->montant_base != $ancienMontantBase || $tarif->pourcentage_prestation != $ancienPourcentage) {
+                $this->mettreAJourTarifsAgence($tarif, $ancienMontantBase, $ancienPourcentage);
+            }
 
             return response()->json(['success' => true, 'message' => 'Tarif groupage mis à jour.', 'tarif' => $tarif]);
         } catch (ValidationException $e) {
@@ -268,6 +276,36 @@ class TarifGroupageController extends Controller
         } catch (Exception $e) {
             Log::error('Erreur toggle statut tarif groupage : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'errors' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Mettre à jour les tarifs d'agence liés en cas de changement du tarif de base
+     */
+    private function mettreAJourTarifsAgence(TarifGroupage $tarif, $ancienMontantBase, $ancienPourcentage)
+    {
+        // Différence de pourcentage à appliquer aux agences
+        $deltaPourcentage = $tarif->pourcentage_prestation - $ancienPourcentage;
+
+        // Récupérer tous les tarifs d'agence liés à ce tarif de groupage
+        $tarifsAgence = $tarif->tarifsAgence;
+
+        foreach ($tarifsAgence as $tarifAgence) {
+            // Si le pourcentage du backoffice a changé, on applique le delta au pourcentage de l'agence
+            if ($deltaPourcentage != 0) {
+                $tarifAgence->pourcentage_prestation = max(0, min(100, $tarifAgence->pourcentage_prestation + $deltaPourcentage));
+            }
+
+            // Note: le montant_base est déjà géré par le boot saving() de TarifAgenceGroupage 
+            // qui va chercher le montant_base du parent si tarif_groupage_id est présent.
+            // Mais pour forcer l'exécution de ce boot saving() et être sûr que tout est recalculé, 
+            // on appelle save(). On peut aussi affecter explicitement pour plus de clarté.
+
+            if ($tarif->montant_base != $ancienMontantBase) {
+                $tarifAgence->montant_base = $tarif->montant_base;
+            }
+
+            $tarifAgence->save();
         }
     }
 }

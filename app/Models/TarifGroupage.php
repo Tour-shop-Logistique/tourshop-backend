@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Enums\TypeExpedition;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 class TarifGroupage extends Model
@@ -59,6 +60,11 @@ class TarifGroupage extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(CategoryProduct::class, 'category_id');
+    }
+
+    public function tarifsAgence(): HasMany
+    {
+        return $this->hasMany(TarifAgenceGroupage::class, 'tarif_groupage_id');
     }
 
     public function backoffice(): BelongsTo

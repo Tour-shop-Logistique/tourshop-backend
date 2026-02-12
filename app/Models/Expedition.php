@@ -32,12 +32,10 @@ class Expedition extends Model
         'reference',
 
         // Expediteur
-        // 'zone_depart_id',
         'pays_depart',
         'expediteur', // JSON
 
         // Destinataire
-        // 'zone_destination_id',
         'pays_destination',
         'destinataire', // JSON
 

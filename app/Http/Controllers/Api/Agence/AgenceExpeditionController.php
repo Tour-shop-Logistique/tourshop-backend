@@ -85,11 +85,11 @@ class AgenceExpeditionController extends Controller
                 $query->where('type_expedition', $request->type_expedition);
             }
 
-            // Filtrage par date
-            if ($request->has('date_debut') && $request->date_debut) {
+            // Filtrage par date de création
+            if ($request->has('date_debut')) {
                 $query->whereDate('created_at', '>=', $request->date_debut);
             }
-            if ($request->has('date_fin') && $request->date_fin) {
+            if ($request->has('date_fin')) {
                 $query->whereDate('created_at', '<=', $request->date_fin);
             }
 
