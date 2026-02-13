@@ -29,6 +29,7 @@ return new class extends Migration {
             $table->decimal('pourcentage_prestation', 10, 2)->nullable();
             $table->decimal('montant_colis_prestation', 10, 2)->nullable();
             $table->decimal('montant_colis_total', 10, 2)->nullable();
+            $table->boolean('is_controlled')->default(false);
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

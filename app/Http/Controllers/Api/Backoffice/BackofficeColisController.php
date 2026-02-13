@@ -72,6 +72,11 @@ class BackofficeColisController extends Controller
                 });
             }
 
+            // Filtre par statut de contrôle
+            if ($request->has('is_controlled')) {
+                $query->where('is_controlled', $request->boolean('is_controlled'));
+            }
+
             // Filtre par date de création
             if ($request->filled('date_debut')) {
                 $query->whereDate('created_at', '>=', $request->get('date_debut'));
@@ -84,31 +89,33 @@ class BackofficeColisController extends Controller
 
             $colis = $query->with([
                 'expedition:id,reference,statut_expedition,pays_depart,pays_destination,expediteur,destinataire,agence_id',
-                'expedition.agence:id,nom_agence',
+                'expedition.agence:id,nom_agence,code_agence,telephone',
                 'category:id,nom'
-            ])->latest()->paginate($request->get('per_page', 20));
+            ])->get();
+            // ->latest()->paginate($request->get('per_page', 10));
 
             return response()->json([
                 'success' => true,
-                'data' => $colis->items(),
-                'meta' => [
-                    'current_page' => $colis->currentPage(),
-                    'last_page' => $colis->lastPage(),
-                    'per_page' => $colis->perPage(),
-                    'total' => $colis->total(),
-                ]
+                'data' => $colis,
+                // 'data' => $colis->items(),
+                // 'meta' => [
+                //     'current_page' => $colis->currentPage(),
+                //     'last_page' => $colis->lastPage(),
+                //     'per_page' => $colis->perPage(),
+                //     'total' => $colis->total(),
+                // ]
             ]);
 
         } catch (Exception $e) {
             Log::error('Erreur liste colis backoffice : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
     }
 
     /**
      * Détails d'un colis pour le backoffice.
      */
-    public function showColis(Request $request, string $id)
+    public function showColis(Request $request, string $code)
     {
         try {
             $user = $request->user();
@@ -117,11 +124,7 @@ class BackofficeColisController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $colis = Colis::with([
-                'expedition',
-                'expedition.agence',
-                'category'
-            ])->find($id);
+            $colis = Colis::where('code_colis', $code)->first();
 
             if (!$colis) {
                 return response()->json(['success' => false, 'message' => 'Colis introuvable.'], 404);
@@ -134,6 +137,12 @@ class BackofficeColisController extends Controller
                 }
             }
 
+            $colis->load([
+                'expedition:id,reference,statut_expedition,pays_depart,pays_destination,expediteur,destinataire,agence_id',
+                'expedition.agence:id,nom_agence,code_agence,telephone',
+                'category:id,nom'
+            ]);
+
             return response()->json([
                 'success' => true,
                 'colis' => $colis
@@ -141,7 +150,47 @@ class BackofficeColisController extends Controller
 
         } catch (Exception $e) {
             Log::error('Erreur détails colis backoffice : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Marquer un colis comme contrôlé.
+     */
+    public function markAsControlled(Request $request, string $code)
+    {
+        try {
+            $user = $request->user();
+
+            if (!in_array($user->type, [UserType::BACKOFFICE, UserType::ADMIN])) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            $colis = Colis::where('code_colis', $code)->first();
+
+            if (!$colis) {
+                return response()->json(['success' => false, 'message' => 'Colis introuvable.'], 404);
+            }
+
+            // Vérification du pays pour le backoffice
+            if ($user->type === UserType::BACKOFFICE) {
+                if (!$user->backoffice || $colis->expedition->agence->pays !== $user->backoffice->pays) {
+                    return response()->json(['success' => false, 'message' => 'Accès non autorisé à ce colis.'], 403);
+                }
+            }
+
+            $colis->is_controlled = true;
+            $colis->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Colis marqué comme contrôlé avec succès.',
+                'colis' => $colis
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('Erreur contrôle colis : ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
     }
 }

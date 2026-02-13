@@ -35,6 +35,7 @@ class Colis extends Model
         'pourcentage_prestation',
         'montant_colis_prestation',
         'montant_colis_total',
+        'is_controlled',
     ];
 
     protected $casts = [
@@ -50,6 +51,7 @@ class Colis extends Model
         'pourcentage_prestation' => 'decimal:2',
         'montant_colis_prestation' => 'decimal:2',
         'montant_colis_total' => 'decimal:2',
+        'is_controlled' => 'boolean',
     ];
 
     public function expedition(): BelongsTo

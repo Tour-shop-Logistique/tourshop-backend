@@ -156,7 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Gestion des colis pour le contrôle backoffice
         Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
-        Route::get('/show-colis/{id}', [BackofficeColisController::class, 'showColis']);
+        Route::get('/show-colis/{code}', [BackofficeColisController::class, 'showColis']);
+        Route::put('/control-colis/{code}', [BackofficeColisController::class, 'markAsControlled']);
     });
 
     // Routes tarification par le backoffice
