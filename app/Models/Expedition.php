@@ -30,6 +30,7 @@ class Expedition extends Model
         'livreur_deplacement_id',
         'livreur_livraison_id',
         'reference',
+        'is_demande_client',
 
         // Expediteur
         'pays_depart',
@@ -54,7 +55,7 @@ class Expedition extends Model
         'frais_emballage', // pour agence
         'frais_enlevement_agence', // pour backoffice
         'frais_retard_retrait', // pour agence et backoffice
-        'frais_douane', // pour client
+        'frais_annexes', // pour client
 
         // Enlevement Domicile
         'is_enlevement_domicile',
@@ -81,9 +82,8 @@ class Expedition extends Model
         'date_expedition_depart', // Date d'expedition du colis à l'étranger
         'date_expedition_arrivee', // Date d'arrivée du colis de l'étranger
         'date_reception_agence', // Date de reception par l'agence du colis expédié
-        'date_limite_retrait', // Date limite pour le retrait de colis par le client
+        'date_limite_retrait', // Date limite pour le retrait de colis par le client (72h apres reception en agence)
         'date_reception_client', // Date de reception du colis par le client
-        'date_livraison_reelle', // Date réelle de livraison (pour statut DELIVERED)
         'date_annulation', // Date d'annulation de l'expedition 
 
         'motif_annulation',
@@ -115,7 +115,7 @@ class Expedition extends Model
         'frais_emballage' => 'decimal:2',
         'frais_enlevement_agence' => 'decimal:2',
         'frais_retard_retrait' => 'decimal:2',
-        'frais_douane' => 'decimal:2',
+        'frais_annexes' => 'decimal:2',
 
         // Booléens et Coordonnées
         'is_enlevement_domicile' => 'boolean',
@@ -123,6 +123,7 @@ class Expedition extends Model
         'is_livraison_domicile' => 'boolean',
         'is_retard_retrait' => 'boolean',
         'is_paiement_credit' => 'boolean',
+        'is_demande_client' => 'boolean',
 
         // Statuts
         'statut_expedition' => ExpeditionStatus::class,
@@ -138,7 +139,6 @@ class Expedition extends Model
         'date_reception_agence' => 'datetime',
         'date_limite_retrait' => 'datetime',
         'date_reception_client' => 'datetime',
-        'date_livraison_reelle' => 'datetime',
         'date_annulation' => 'datetime',
 
         // Commissions
@@ -220,24 +220,10 @@ class Expedition extends Model
         return $query->where('statut_expedition', ExpeditionStatus::REFUSED);
     }
 
-    public function scopeInProgress($query)
-    {
-        return $query->where('statut_expedition', ExpeditionStatus::IN_PROGRESS);
-    }
 
-    public function scopeShipped($query)
+    public function scopeTerminated($query)
     {
-        return $query->where('statut_expedition', ExpeditionStatus::SHIPPED);
-    }
-
-    public function scopeDelivered($query)
-    {
-        return $query->where('statut_expedition', ExpeditionStatus::DELIVERED);
-    }
-
-    public function scopeCancelled($query)
-    {
-        return $query->where('statut_expedition', ExpeditionStatus::CANCELLED);
+        return $query->where('statut_expedition', ExpeditionStatus::TERMINED);
     }
 
     // Scope pour les expéditions d'une agence
@@ -313,17 +299,6 @@ class Expedition extends Model
         return in_array($this->statut_expedition, [ExpeditionStatus::ACCEPTED]);
     }
 
-    // Méthode pour vérifier si l'expédition peut être expédiée
-    public function peutEtreExpediee(): bool
-    {
-        return in_array($this->statut_expedition, [ExpeditionStatus::IN_PROGRESS]);
-    }
-
-    // Méthode pour vérifier si l'expédition peut être livrée
-    public function peutEtreLivree(): bool
-    {
-        return in_array($this->statut_expedition, [ExpeditionStatus::SHIPPED]);
-    }
 
     // Méthode pour vérifier si l'expédition peut être annulée
     public function peutEtreAnnulee(): bool

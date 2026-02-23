@@ -76,12 +76,16 @@ class AgenceExpeditionController extends Controller
                 ->with(['colis.category:id,nom']);
 
             // Filtrage par statut
-            if ($request->has('statut_expedition') && $request->statut_expedition) {
-                $query->where('statut_expedition', $request->statut_expedition);
+            if ($request->filled('status')) {
+                $query->where('statut_expedition', $request->status);
+            }
+
+            if ($request->filled('is_demande_client')) {
+                $query->where('is_demande_client', $request->is_demande_client);
             }
 
             // Filtrage par type d'expédition
-            if ($request->has('type_expedition') && $request->type_expedition) {
+            if ($request->filled('type_expedition')) {
                 $query->where('type_expedition', $request->type_expedition);
             }
 
@@ -305,8 +309,6 @@ class AgenceExpeditionController extends Controller
             $expeditionData = [
                 'user_id' => $user->id,
                 'agence_id' => $agence->id,
-                // 'zone_depart_id' => $zoneDepart->id,
-                // 'zone_destination_id' => $zoneDestination->id,
                 'pays_depart' => $validated['pays_depart'],
                 'pays_destination' => $validated['pays_destination'],
                 'expediteur' => $expediteurData,
@@ -315,8 +317,9 @@ class AgenceExpeditionController extends Controller
                 'is_paiement_credit' => $validated['is_paiement_credit'],
                 'is_livraison_domicile' => $validated['is_livraison_domicile'],
                 'statut_paiement' => $validated['statut_paiement'],
-                'statut_expedition' => ExpeditionStatus::ACCEPTED,
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DEPART,
                 'date_livraison_agence' => now(),
+                'is_demande_client' => false,
             ];
 
             $expedition = Expedition::create($expeditionData);
@@ -435,11 +438,17 @@ class AgenceExpeditionController extends Controller
     {
         try {
             $user = request()->user();
+            if ($user->type !== UserType::AGENCE) {
+                return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            }
+
             $agence = Agence::where('user_id', $user->id)->first();
+            if (!$agence) {
+                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
+            }
 
             $expedition = Expedition::pourAgence($agence->id)
                 ->where('statut_expedition', ExpeditionStatus::EN_ATTENTE)
-                ->withLivreurs()
                 ->find($id);
 
             if (!$expedition) {
@@ -447,12 +456,8 @@ class AgenceExpeditionController extends Controller
             }
 
             $expedition->update([
-                'statut_expedition' => ExpeditionStatus::ACCEPTED,
-                'date_expedition_depart' => now()
+                'statut_expedition' => ExpeditionStatus::ACCEPTED
             ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
 
             return response()->json([
                 'success' => true,
@@ -472,7 +477,14 @@ class AgenceExpeditionController extends Controller
     {
         try {
             $user = $request->user();
+            if ($user->type !== UserType::AGENCE) {
+                return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            }
+
             $agence = Agence::where('user_id', $user->id)->first();
+            if (!$agence) {
+                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
+            }
 
             $validator = Validator::make($request->all(), [
                 'motif_refus' => 'required|string|max:500'
@@ -484,7 +496,6 @@ class AgenceExpeditionController extends Controller
 
             $expedition = Expedition::pourAgence($agence->id)
                 ->where('statut_expedition', ExpeditionStatus::EN_ATTENTE)
-                ->withLivreurs()
                 ->find($id);
 
             if (!$expedition) {
@@ -493,11 +504,8 @@ class AgenceExpeditionController extends Controller
 
             $expedition->update([
                 'statut_expedition' => ExpeditionStatus::REFUSED,
-                'description' => ($expedition->description ?? '') . ' | Refus: ' . $request->motif_refus
+                'motif_annulation' => $request->motif_refus
             ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
 
             return response()->json([
                 'success' => true,
@@ -540,7 +548,7 @@ class AgenceExpeditionController extends Controller
             $nouveauStatut = $validated['statut'];
 
             $updateData = ['statut_expedition' => $nouveauStatut];
-            if ($nouveauStatut === ExpeditionStatus::DELIVERED->value && isset($validated['date_livraison_reelle'])) {
+            if ($nouveauStatut === ExpeditionStatus::TERMINED->value && isset($validated['date_livraison_reelle'])) {
                 $updateData['date_livraison_reelle'] = $validated['date_livraison_reelle'];
             }
 
@@ -566,34 +574,27 @@ class AgenceExpeditionController extends Controller
     public function confirmerReceptionAgenceDepart(Request $request, string $id): JsonResponse
     {
         try {
-            $user = $request->user();
+             $user = request()->user();
+            if ($user->type !== UserType::AGENCE) {
+                return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
+            }
+
             $agence = Agence::where('user_id', $user->id)->first();
+            if (!$agence) {
+                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
+            }
 
             $expedition = Expedition::pourAgence($agence->id)
-                ->withLivreurs()
+                ->where('statut_expedition', ExpeditionStatus::ACCEPTED)
                 ->find($id);
+
             if (!$expedition) {
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
+                return response()->json(['success' => false, 'message' => 'Expédition non trouvée ou non éligible'], 404);
             }
 
-            $validator = Validator::make($request->all(), [
-                'poids_reel' => 'nullable|numeric|min:0.01'
+            $expedition->update([
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DEPART,
             ]);
-
-            if ($validator->fails()) {
-                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-            }
-            $validated = $validator->validated();
-
-            $updateData = [
-                'statut_expedition' => ExpeditionStatus::RECU_AGENCIA,
-            ];
-
-            if (isset($validated['poids_reel'])) {
-                $updateData['poids_total_kg'] = $validated['poids_reel'];
-            }
-
-            $expedition->update($updateData);
 
             // Masquer les IDs des livreurs car les relations livreur sont chargées
             $expedition->masquerIdsLivreurs();
@@ -659,7 +660,7 @@ class AgenceExpeditionController extends Controller
             }
 
             $expedition->update([
-                'statut_expedition' => ExpeditionStatus::RECU_AGENCIA_DESTINATION,
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION,
                 'date_reception_agence' => now()
             ]);
 
@@ -722,7 +723,7 @@ class AgenceExpeditionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
 
             $expedition->update([
-                'statut_expedition' => ExpeditionStatus::EN_ATTENTE_RETRAIT
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION
             ]);
 
             // Masquer les IDs des livreurs car les relations livreur sont chargées
@@ -747,7 +748,7 @@ class AgenceExpeditionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
 
             $expedition->update([
-                'statut_expedition' => ExpeditionStatus::DELIVERED,
+                'statut_expedition' => ExpeditionStatus::TERMINED,
                 'date_reception_client' => now(),
                 'code_validation_reception' => null
             ]);

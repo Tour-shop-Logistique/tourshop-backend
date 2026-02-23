@@ -46,7 +46,7 @@ class TarifSimpleController extends Controller
             }
 
 
-            $tarifs = $query->orderBy('indice')->get();
+            $tarifs = $query->with('zone:id,nom')->orderBy('indice')->get();
 
             return response()->json(['success' => true, 'tarifs' => $tarifs]);
         } catch (Exception $e) {

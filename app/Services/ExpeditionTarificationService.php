@@ -384,6 +384,10 @@ class ExpeditionTarificationService
 
         $montantExpeditionTotal = $montantBaseTotal + $montantPrestationTotal;
 
+        // if ($montantExpeditionTotal < 13500) {
+        //     $montantExpeditionTotal = 13500;
+        // }
+
         return [
             'success' => true,
             'tarif' => [
@@ -680,6 +684,10 @@ class ExpeditionTarificationService
         }
 
         $montantExpeditionTotal = $montantBaseTotal + $montantPrestationTotal;
+
+        // if ($montantExpeditionTotal < 13500) {
+        //     $montantExpeditionTotal = 13500;
+        // }
 
         return [
             'success' => true,

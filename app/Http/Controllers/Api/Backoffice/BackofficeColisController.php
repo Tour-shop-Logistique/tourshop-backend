@@ -155,9 +155,9 @@ class BackofficeColisController extends Controller
     }
 
     /**
-     * Marquer un colis comme contrôlé.
+     * Marquer plusieurs colis comme contrôlés.
      */
-    public function markAsControlled(Request $request, string $code)
+    public function markMultipleAsControlled(Request $request)
     {
         try {
             $user = $request->user();
@@ -166,30 +166,44 @@ class BackofficeColisController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $colis = Colis::where('code_colis', $code)->first();
+            $request->validate([
+                'codes' => 'required|array',
+                'codes.*' => 'string|exists:colis,code_colis',
+            ]);
 
-            if (!$colis) {
-                return response()->json(['success' => false, 'message' => 'Colis introuvable.'], 404);
-            }
+            $codes = $request->input('codes');
+
+            $query = Colis::whereIn('code_colis', $codes);
 
             // Vérification du pays pour le backoffice
             if ($user->type === UserType::BACKOFFICE) {
-                if (!$user->backoffice || $colis->expedition->agence->pays !== $user->backoffice->pays) {
-                    return response()->json(['success' => false, 'message' => 'Accès non autorisé à ce colis.'], 403);
+                if (!$user->backoffice) {
+                    return response()->json(['success' => false, 'message' => 'Aucun backoffice rattaché.'], 403);
+                }
+
+                $backofficeCountry = $user->backoffice->pays;
+
+                // Vérifier si des colis ne sont pas autorisés
+                $nonAuthorized = (clone $query)->whereHas('expedition.agence', function ($q) use ($backofficeCountry) {
+                    $q->where('pays', '!=', $backofficeCountry);
+                })->exists();
+
+                if ($nonAuthorized) {
+                    return response()->json(['success' => false, 'message' => 'Certains colis ne font pas partie de votre territoire.'], 403);
                 }
             }
 
-            $colis->is_controlled = true;
-            $colis->save();
+            $query->update([
+                'is_controlled' => true,
+            ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Colis marqué comme contrôlé avec succès.',
-                'colis' => $colis
+                'message' => count($codes) . ' colis contrôlés avec succès.',
             ]);
 
         } catch (Exception $e) {
-            Log::error('Erreur contrôle colis : ' . $e->getMessage());
+            Log::error('Erreur contrôle multiple colis : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
     }

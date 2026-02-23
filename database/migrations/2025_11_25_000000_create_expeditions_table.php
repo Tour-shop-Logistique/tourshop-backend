@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->uuid('agence_id')->index();
             $table->uuid('user_id')->nullable()->index();
+            $table->boolean('is_demande_client')->nullable();
 
             // Livreurs associés à chaque étape
             $table->uuid('livreur_enlevement_id')->nullable()->index();
@@ -28,9 +29,7 @@ return new class extends Migration {
             $table->jsonb('destinataire');
 
             // Localisation
-            // $table->string('zone_depart_id')->nullable()->index();
             $table->string('pays_depart')->nullable();
-            // $table->string('zone_destination_id')->nullable()->index();
             $table->string('pays_destination')->nullable();
 
             // Type et Statuts
@@ -50,7 +49,7 @@ return new class extends Migration {
             $table->decimal('frais_emballage', 12, 2)->default(0);
             $table->decimal('frais_enlevement_agence', 12, 2)->default(0);
             $table->decimal('frais_retard_retrait', 12, 2)->default(0);
-            $table->decimal('frais_douane', 12, 2)->default(0);
+            $table->decimal('frais_annexes', 12, 2)->default(0);
 
             // Options de service
             $table->boolean('is_enlevement_domicile')->default(false);
@@ -76,7 +75,6 @@ return new class extends Migration {
             $table->timestamp('date_reception_agence')->nullable();
             $table->timestamp('date_limite_retrait')->nullable();
             $table->timestamp('date_reception_client')->nullable();
-            $table->timestamp('date_livraison_reelle')->nullable();
             $table->timestamp('date_annulation')->nullable();
             $table->text('motif_annulation')->nullable();
 

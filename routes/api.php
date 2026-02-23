@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
 use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
+use App\Http\Controllers\Api\Backoffice\BackofficeExpeditionController;
 use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
 use App\Http\Controllers\Api\Agence\AgenceColisController;
 use App\Http\Controllers\Api\Expedition\ClientExpeditionController;
@@ -77,9 +78,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/status/{id}', [AgenceExpeditionController::class, 'mettreAJourStatut']);
 
             // Workflow opérationnel agence
-            Route::put('/confirm-reception/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
+            Route::put('/confirm-reception-depart/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
             Route::post('/ship-to-warehouse/{id}', [AgenceExpeditionController::class, 'expedierVersEntrepot']);
-            Route::post('/receive-from-warehouse/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
+            Route::post('/confirm-reception-destination/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
             Route::post('/configure-delivery/{id}', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
             Route::post('/prepare-pickup/{id}', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
             Route::post('/confirm-pickup/{id}', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
@@ -157,7 +158,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gestion des colis pour le contrôle backoffice
         Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
         Route::get('/show-colis/{code}', [BackofficeColisController::class, 'showColis']);
-        Route::put('/control-colis/{code}', [BackofficeColisController::class, 'markAsControlled']);
+        Route::put('/control-colis', [BackofficeColisController::class, 'markMultipleAsControlled']);
+
+        // Gestion des expéditions pour le backoffice
+        Route::get('/list-expedition', [BackofficeExpeditionController::class, 'listExpeditions']);
+        Route::put('/transit-expedition/{id}', [BackofficeExpeditionController::class, 'transitExpedition']);
     });
 
     // Routes tarification par le backoffice
