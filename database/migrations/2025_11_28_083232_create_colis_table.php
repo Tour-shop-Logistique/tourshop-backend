@@ -30,6 +30,11 @@ return new class extends Migration {
             $table->decimal('montant_colis_prestation', 10, 2)->nullable();
             $table->decimal('montant_colis_total', 10, 2)->nullable();
             $table->boolean('is_controlled')->default(false);
+            $table->timestamp('controlled_at')->nullable();
+            $table->boolean('is_received_by_backoffice')->default(false);
+            $table->timestamp('received_at_backoffice')->nullable();
+            $table->boolean('is_received_by_agence')->default(false);
+            $table->timestamp('received_at_agence')->nullable();
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

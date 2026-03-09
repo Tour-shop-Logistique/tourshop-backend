@@ -36,6 +36,11 @@ class Colis extends Model
         'montant_colis_prestation',
         'montant_colis_total',
         'is_controlled',
+        'controlled_at',
+        'is_received_by_backoffice',
+        'received_at_backoffice',
+        'is_received_by_agence',
+        'received_at_agence',
     ];
 
     protected $casts = [
@@ -52,6 +57,11 @@ class Colis extends Model
         'montant_colis_prestation' => 'decimal:2',
         'montant_colis_total' => 'decimal:2',
         'is_controlled' => 'boolean',
+        'controlled_at' => 'datetime',
+        'is_received_by_backoffice' => 'boolean',
+        'received_at_backoffice' => 'datetime',
+        'is_received_by_agence' => 'boolean',
+        'received_at_agence' => 'datetime',
     ];
 
     public function expedition(): BelongsTo

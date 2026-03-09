@@ -38,7 +38,7 @@ class ClientExpeditionController extends Controller
             $client = $user; // L'utilisateur connecté est le client
 
             $query = Expedition::pourUser($client->id)
-                ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination']);
+                ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination', 'colis']);
 
             // Filtrage par statut
             if ($request->has('statut') && $request->statut) {
@@ -147,7 +147,7 @@ class ClientExpeditionController extends Controller
             $client = $user; // L'utilisateur connecté est le client
 
             $expedition = Expedition::pourUser($client->id)
-                ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination'])
+                ->with(['agence', 'destinataire', 'livreur', 'zoneDepart', 'zoneDestination', 'colis'])
                 ->find($id);
 
             if (!$expedition) {

@@ -25,6 +25,7 @@ class Expedition extends Model
 
     protected $fillable = [
         'agence_id',
+        'agence_destination_id',
         'user_id',
         'livreur_enlevement_id',
         'livreur_deplacement_id',
@@ -165,6 +166,12 @@ class Expedition extends Model
         return $this->belongsTo(Agence::class);
     }
 
+    /** Agence de destination désignée par le backoffice pour réceptionner les colis. */
+    public function agenceDestination(): BelongsTo
+    {
+        return $this->belongsTo(Agence::class, 'agence_destination_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
@@ -203,6 +210,52 @@ class Expedition extends Model
         return (float) $this->colis()->sum('prix_emballage');
     }
 
+    /**
+     * Met à jour le statut de l'expédition selon la réception des colis.
+     *
+     * Processus (ordre chronologique) :
+     * 1. Le backoffice indique qu'il a reçu les colis → tous is_received_by_backoffice = true
+     *    → statut = ARRIVEE_EXPEDITION_SUCCES (les colis sont arrivés à destination pays).
+     * 2. L'agence de destination réceptionne les colis → tous is_received_by_agence = true
+     *    → statut = RECU_AGENCE_DESTINATION (disponible pour retrait client).
+     *
+     * On ne rétrograde jamais : si on est déjà RECU_AGENCE_DESTINATION, on ne repasse pas à ARRIVEE_EXPEDITION_SUCCES.
+     */
+    public function syncStatutFromColis(): bool
+    {
+        $colis = $this->colis()->get();
+        if ($colis->isEmpty()) {
+            return false;
+        }
+
+        $allReceivedByAgence = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence);
+        $allReceivedByBackoffice = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_backoffice);
+
+        // Étape 2 : tous les colis reçus par l'agence → RECU_AGENCE_DESTINATION (on vérifie en premier car c'est le statut le plus avancé)
+        if ($allReceivedByAgence) {
+            $this->update([
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION,
+                'date_reception_agence' => $this->date_reception_agence ?? now(),
+            ]);
+            return true;
+        }
+
+        // Étape 1 : tous les colis reçus par le backoffice → ARRIVEE_EXPEDITION_SUCCES (sans jamais rétrograder)
+        $statutsApresArrivee = [
+            ExpeditionStatus::RECU_AGENCE_DESTINATION,
+            ExpeditionStatus::EN_COURS_LIVRAISON,
+            ExpeditionStatus::TERMINED,
+        ];
+        if ($allReceivedByBackoffice && !in_array($this->statut_expedition, $statutsApresArrivee, true)) {
+            $this->update([
+                'statut_expedition' => ExpeditionStatus::ARRIVEE_EXPEDITION_SUCCES,
+                'date_expedition_arrivee' => $this->date_expedition_arrivee ?? now(),
+            ]);
+            return true;
+        }
+
+        return false;
+    }
 
     // Scopes pour filtrer par statut
     public function scopeEnAttente($query)

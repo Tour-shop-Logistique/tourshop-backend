@@ -7,6 +7,7 @@ enum ExpeditionStatus: string
     case EN_ATTENTE = 'en_attente'; //Par le client
     case ACCEPTED = 'accepted'; //Par l'agence de depart
     case REFUSED = 'refused'; //Par l'agence de depart
+    case CANCELLED = 'cancelled'; //Par le client
     case EN_COURS_ENLEVEMENT = 'en_cours_enlevement'; //Par l'agence de depart
     case EN_COURS_DEPOT = 'en_cours_depot'; //Par le livreur local
     case RECU_AGENCE_DEPART = 'recu_agence_depart'; //Par l'agence de depart
@@ -23,6 +24,7 @@ enum ExpeditionStatus: string
             self::EN_ATTENTE => 'En attente de validation',
             self::ACCEPTED => 'Validé par l\'agence',
             self::REFUSED => 'Refusé par l\'agence',
+            self::CANCELLED => 'Annulée par le client',
             self::EN_COURS_ENLEVEMENT => 'Enlèvement en cours',
             self::EN_COURS_DEPOT => 'En cours de depot',
             self::RECU_AGENCE_DEPART => 'Reçu à l\'agence depart',
@@ -41,6 +43,7 @@ enum ExpeditionStatus: string
             self::EN_ATTENTE => '#FFA500', // Orange
             self::ACCEPTED => '#32CD32', // LimeGreen
             self::REFUSED => '#FF0000', // Red
+            self::CANCELLED => '#FF0000', // Red
             self::EN_COURS_ENLEVEMENT => '#1E90FF', // DodgerBlue
             self::EN_COURS_DEPOT => '#16ac84ff', // RoyalBlue
             self::RECU_AGENCE_DEPART => '#4169E1', // RoyalBlue

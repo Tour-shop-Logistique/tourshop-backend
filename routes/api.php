@@ -139,6 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gestion des colis de l'agence
         Route::get('/list-colis', [AgenceColisController::class, 'colis']);
         Route::get('/show-colis/{id}', [AgenceColisController::class, 'show']);
+        Route::put('/receive-colis', [AgenceColisController::class, 'markMultipleAsReceived']);
     });
 
     // Routes backoffice
@@ -159,6 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
         Route::get('/show-colis/{code}', [BackofficeColisController::class, 'showColis']);
         Route::put('/control-colis', [BackofficeColisController::class, 'markMultipleAsControlled']);
+        Route::put('/receive-colis', [BackofficeColisController::class, 'markMultipleAsReceived']);
 
         // Gestion des expéditions pour le backoffice
         Route::get('/list-expedition', [BackofficeExpeditionController::class, 'listExpeditions']);

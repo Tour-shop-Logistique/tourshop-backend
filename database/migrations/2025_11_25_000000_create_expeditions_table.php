@@ -13,6 +13,7 @@ return new class extends Migration {
         Schema::create('expeditions', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('agence_id')->index();
+            $table->uuid('agence_destination_id')->nullable()->index();
             $table->uuid('user_id')->nullable()->index();
             $table->boolean('is_demande_client')->nullable();
 
@@ -92,6 +93,7 @@ return new class extends Migration {
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
+            $table->foreign('agence_destination_id')->references('id')->on('agences')->onDelete('set null');
         });
     }
 

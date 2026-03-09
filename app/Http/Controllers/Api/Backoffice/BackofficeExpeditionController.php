@@ -6,6 +6,7 @@ use App\Enums\UserType;
 use App\Http\Controllers\Controller;
 use App\Models\Expedition;
 use Illuminate\Http\Request;
+use App\Enums\ExpeditionStatus;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -90,7 +91,7 @@ class BackofficeExpeditionController extends Controller
             ])
                 ->with([
                     'agence:id,nom_agence,code_agence,telephone',
-                    'colis:id,expedition_id,code_colis,designation,poids,articles,montant_colis_total,is_controlled'
+                    'colis:id,expedition_id,code_colis,designation,poids,articles,montant_colis_total,is_controlled,is_received_by_backoffice,received_at_backoffice'
                 ])
                 ->latest()
                 ->get();
@@ -132,19 +133,16 @@ class BackofficeExpeditionController extends Controller
             }
 
             $request->validate([
-                'frais_annexes' => ['nullable', 'numeric', 'min:0'],
+                'frais_annexes' => ['required', 'numeric', 'min:0'],
                 'code_suivi_expedition' => ['nullable', 'string', 'max:255'],
             ]);
 
-            if ($request->has('frais_annexes')) {
-                $expedition->frais_annexes = $request->frais_annexes ?? 0;
-            }
-
-            if ($request->has('code_suivi_expedition')) {
-                $expedition->code_suivi_expedition = $request->code_suivi_expedition;
-            }
-
-            $expedition->save();
+            $expedition->update([
+                'frais_annexes' => $request->frais_annexes,
+                'code_suivi_expedition' => $request->code_suivi_expedition,
+                'statut_expedition' => ExpeditionStatus::DEPART_EXPEDITION_SUCCES,
+                'date_expedition_depart' => now(),
+            ]);
 
             return response()->json([
                 'success' => true,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Agence;
 use App\Models\Colis;
+use App\Models\Expedition;
 use App\Models\User;
 use App\Enums\UserType;
 use App\Enums\ExpeditionStatus;
@@ -30,9 +31,20 @@ class AgenceColisController extends Controller
                 return response()->json(['success' => false, 'message' => 'Aucune agence rattachée à cet utilisateur.'], 404);
             }
 
-            $query = Colis::whereHas('expedition', function ($q) use ($user) {
-                $q->where('agence_id', $user->agence_id);
-            })->with(['expedition:id,reference,statut_expedition,pays_depart,pays_destination', 'category:id,nom']);
+            $agenceId = $user->agence_id;
+
+            // Colis à réceptionner : désignés par le backoffice (agence_destination_id = mon agence, déjà reçus par le backoffice)
+            if ($request->boolean('a_receptionner')) {
+                $query = Colis::whereHas('expedition', function ($q) use ($agenceId) {
+                    $q->where('agence_destination_id', $agenceId);
+                })->where('is_received_by_backoffice', true)
+                    ->with(['expedition:id,reference,statut_expedition,pays_depart,pays_destination,agence_destination_id', 'expedition.agenceDestination:id,nom_agence,code_agence', 'category:id,nom']);
+            } else {
+                // Colis des expéditions de l'agence (agence de départ)
+                $query = Colis::whereHas('expedition', function ($q) use ($agenceId) {
+                    $q->where('agence_id', $agenceId);
+                })->with(['expedition:id,reference,statut_expedition,pays_depart,pays_destination', 'category:id,nom']);
+            }
 
             // Filtrage par statut de l'expédition
             if ($status = $request->get('status')) {
@@ -103,6 +115,58 @@ class AgenceColisController extends Controller
         } catch (Exception $e) {
             Log::error('Erreur détails colis agence : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.'], 500);
+        }
+    }
+
+    /**
+     * Marquer plusieurs colis comme réceptionnés par l'agence.
+     * Une fois réceptionnés, le client peut savoir que son colis est disponible pour retrait.
+     */
+    public function markMultipleAsReceived(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if ($user->type !== UserType::AGENCE) {
+                return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+            }
+
+            if (!$user->agence_id) {
+                return response()->json(['success' => false, 'message' => 'Aucune agence rattachée à cet utilisateur.'], 404);
+            }
+
+            $request->validate([
+                'codes' => 'required|array',
+                'codes.*' => 'string|exists:colis,code_colis',
+            ]);
+
+            $codes = $request->input('codes');
+            $agenceId = $user->agence_id;
+
+            // Seuls les colis dont l'expédition a été désignée à cette agence (agence_destination_id) peuvent être marqués reçus
+            $query = Colis::whereIn('code_colis', $codes)
+                ->whereHas('expedition', function ($q) use ($agenceId) {
+                    $q->where('agence_destination_id', $agenceId);
+                });
+
+            $updated = $query->update([
+                'is_received_by_agence' => true,
+                'received_at_agence' => now(),
+            ]);
+
+            // Mise à jour automatique du statut des expéditions si tous leurs colis sont reçus par l'agence
+            $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
+            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+
+            return response()->json([
+                'success' => true,
+                'message' => $updated . ' colis marqués comme réceptionnés par l\'agence.',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'Données invalides.', 'errors' => $e->errors()], 422);
+        } catch (Exception $e) {
+            Log::error('Erreur réception colis agence : ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
     }
 }
