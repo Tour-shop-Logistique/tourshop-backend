@@ -1,23 +1,23 @@
 <?php
 
-use App\Http\Controllers\Api\Backoffice\CommissionSettingController;
-use App\Http\Controllers\Api\Agence\AgenceController;
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\Agence\AgenceUserController;
-use App\Http\Controllers\Api\Agence\AgenceTarifSimpleController;
-use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
-use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
-use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
-use App\Http\Controllers\Api\Backoffice\ProduitsController;
-use App\Http\Controllers\Api\Backoffice\CategoryProductController;
-use App\Http\Controllers\Api\Backoffice\ZoneController;
-use App\Http\Controllers\Api\Backoffice\BackofficeController;
-use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
-use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
-use App\Http\Controllers\Api\Backoffice\BackofficeExpeditionController;
-use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
 use App\Http\Controllers\Api\Agence\AgenceColisController;
+use App\Http\Controllers\Api\Agence\AgenceController;
+use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
+use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
+use App\Http\Controllers\Api\Agence\AgenceTarifSimpleController;
+use App\Http\Controllers\Api\Agence\AgenceUserController;
+use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
+use App\Http\Controllers\Api\Backoffice\BackofficeController;
+use App\Http\Controllers\Api\Backoffice\BackofficeExpeditionController;
+use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
+use App\Http\Controllers\Api\Backoffice\CategoryProductController;
+use App\Http\Controllers\Api\Backoffice\CommissionSettingController;
+use App\Http\Controllers\Api\Backoffice\ProduitsController;
+use App\Http\Controllers\Api\Backoffice\TarifGroupageController;
+use App\Http\Controllers\Api\Backoffice\TarifSimpleController;
+use App\Http\Controllers\Api\Backoffice\ZoneController;
 use App\Http\Controllers\Api\Expedition\ClientExpeditionController;
+use App\Http\Controllers\Api\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -44,19 +44,17 @@ Route::get('/test-cors', function (Request $request) {
     ]);
 });
 
-
-Route::post('/register', [AuthController::class, 'register']); // Inscription
-Route::post('/login', [AuthController::class, 'login']); // Connexion
+Route::post('/register', [AuthController::class, 'register']);  // Inscription
+Route::post('/login', [AuthController::class, 'login']);  // Connexion
 
 // Routes protégées par l'authentification (nécessitent un jeton API valide)
 Route::middleware('auth:sanctum')->group(function () {
     // Routes d'authentification protégées
-    Route::post('/logout', [AuthController::class, 'logout']); // Déconnexion
-    Route::get('/profil', [AuthController::class, 'profile']); // Profil de l'utilisateur connecté
+    Route::post('/logout', [AuthController::class, 'logout']);  // Déconnexion
+    Route::get('/profil', [AuthController::class, 'profile']);  // Profil de l'utilisateur connecté
 
     // --- GESTION GLOBALE DES EXPÉDITIONS ---
     Route::prefix('expedition')->group(function () {
-
         // Côté Client
         Route::prefix('client')->group(function () {
             Route::get('/list', [ClientExpeditionController::class, 'list']);
@@ -78,9 +76,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/status/{id}', [AgenceExpeditionController::class, 'mettreAJourStatut']);
 
             // Workflow opérationnel agence
-            Route::put('/confirm-reception-depart/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDepart']);
-            Route::post('/ship-to-warehouse/{id}', [AgenceExpeditionController::class, 'expedierVersEntrepot']);
-            Route::post('/confirm-reception-destination/{id}', [AgenceExpeditionController::class, 'confirmerReceptionAgenceDestination']);
             Route::post('/configure-delivery/{id}', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
             Route::post('/prepare-pickup/{id}', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
             Route::post('/confirm-pickup/{id}', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
@@ -94,13 +89,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/reception-agence/{id}/confirm', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'confirmReceptionAgence']);
             Route::post('/livraison/{id}/start', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'startLivraison']);
             Route::post('/livraison/{id}/validate', [App\Http\Controllers\Api\Livreur\LivreurExpeditionController::class, 'validateLivraison']);
-        });
-
-        // Côté Entrepôt
-        Route::prefix('entrepot')->group(function () {
-            Route::post('/receive/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'receive']);
-            Route::post('/ship/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'ship']);
-            Route::post('/confirm-arrival/{id}', [App\Http\Controllers\Api\Entrepot\EntrepotController::class, 'confirmArrival']);
         });
     });
 
@@ -137,9 +125,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/status-tarif-groupage/{tarif}', [AgenceTarifGroupageController::class, 'toggleStatus']);
 
         // Gestion des colis de l'agence
-        Route::get('/list-colis', [AgenceColisController::class, 'colis']);
+        Route::get('/list-colis', [AgenceColisController::class, 'listColis']);
         Route::get('/show-colis/{id}', [AgenceColisController::class, 'show']);
-        Route::put('/receive-colis', [AgenceColisController::class, 'markMultipleAsReceived']);
+        Route::put('/receive-colis-depart', [AgenceColisController::class, 'markMultipleAsReceivedAtDepart']);
+        Route::put('/receive-colis-destination', [AgenceColisController::class, 'markMultipleAsReceivedAtDestination']);
+        Route::put('/send-colis-to-entrepot', [AgenceColisController::class, 'markMultipleAsShippedToWarehouse']);
     });
 
     // Routes backoffice
@@ -157,7 +147,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/delete-user/{user}', [BackofficeUserController::class, 'deleteUser']);
 
         // Gestion des colis pour le contrôle backoffice
-        Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
+        // Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
         Route::get('/show-colis/{code}', [BackofficeColisController::class, 'showColis']);
         Route::put('/control-colis', [BackofficeColisController::class, 'markMultipleAsControlled']);
         Route::put('/receive-colis', [BackofficeColisController::class, 'markMultipleAsReceived']);

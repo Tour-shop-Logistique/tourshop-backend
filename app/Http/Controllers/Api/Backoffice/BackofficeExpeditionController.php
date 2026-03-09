@@ -47,16 +47,6 @@ class BackofficeExpeditionController extends Controller
                 }
             }
 
-            // Filtres de recherche
-            if ($search = $request->get('search')) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('reference', 'like', "%{$search}%")
-                        ->orWhere('expediteur->nom_prenom', 'like', "%{$search}%")
-                        ->orWhere('destinataire->nom_prenom', 'like', "%{$search}%")
-                        ->orWhere('code_suivi_expedition', 'like', "%{$search}%");
-                });
-            }
-
             if ($request->filled('status')) {
                 $query->where('statut_expedition', $request->get('status'));
             }
@@ -88,9 +78,10 @@ class BackofficeExpeditionController extends Controller
                 'code_suivi_expedition',
                 'date_deplacement_entrepot',
                 'date_expedition_depart',
+                'date_expedition_arrivee',
             ])
                 ->with([
-                    'agence:id,nom_agence,code_agence,telephone',
+                    'agence:id,nom_agence,code_agence,telephone,adresse,ville,commune,pays',
                     'colis:id,expedition_id,code_colis,designation,poids,articles,montant_colis_total,is_controlled,is_received_by_backoffice,received_at_backoffice'
                 ])
                 ->latest()

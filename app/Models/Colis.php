@@ -39,8 +39,12 @@ class Colis extends Model
         'controlled_at',
         'is_received_by_backoffice',
         'received_at_backoffice',
-        'is_received_by_agence',
-        'received_at_agence',
+        'is_received_by_agence_destination',
+        'received_at_agence_destination',
+        'is_received_by_agence_depart',
+        'received_at_agence_depart',
+        'is_expedie_vers_entrepot',
+        'expedie_vers_entrepot_at',
     ];
 
     protected $casts = [
@@ -60,8 +64,12 @@ class Colis extends Model
         'controlled_at' => 'datetime',
         'is_received_by_backoffice' => 'boolean',
         'received_at_backoffice' => 'datetime',
-        'is_received_by_agence' => 'boolean',
-        'received_at_agence' => 'datetime',
+        'is_received_by_agence_destination' => 'boolean',
+        'received_at_agence_destination' => 'datetime',
+        'is_received_by_agence_depart' => 'boolean',
+        'received_at_agence_depart' => 'datetime',
+        'is_expedie_vers_entrepot' => 'boolean',
+        'expedie_vers_entrepot_at' => 'datetime',
     ];
 
     public function expedition(): BelongsTo

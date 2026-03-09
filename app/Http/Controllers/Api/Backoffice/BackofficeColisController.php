@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Api\Backoffice;
 
+use App\Enums\UserType;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Colis;
 use App\Models\Expedition;
-use App\Enums\UserType;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Exception;
 
@@ -16,7 +16,8 @@ class BackofficeColisController extends Controller
      * Liste des colis que le backoffice doit contrôler.
      * Basé sur les pays couverts par les zones rattachées au backoffice.
      */
-    public function listColis(Request $request)
+
+    /*public function listColis(Request $request)
     {
         try {
             $user = $request->user();
@@ -116,7 +117,7 @@ class BackofficeColisController extends Controller
             Log::error('Erreur liste colis backoffice : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
-    }
+    }*/
 
     /**
      * Détails d'un colis pour le backoffice.
@@ -153,7 +154,6 @@ class BackofficeColisController extends Controller
                 'success' => true,
                 'colis' => $colis
             ]);
-
         } catch (Exception $e) {
             Log::error('Erreur détails colis backoffice : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
@@ -208,7 +208,6 @@ class BackofficeColisController extends Controller
                 'success' => true,
                 'message' => count($codes) . ' colis contrôlés avec succès.',
             ]);
-
         } catch (Exception $e) {
             Log::error('Erreur contrôle multiple colis : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
@@ -247,7 +246,7 @@ class BackofficeColisController extends Controller
             if ($expeditionsAvecAutreAgence) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Tous les colis d\'une même expédition doivent être envoyés à la même agence. Une expédition concernée a déjà été attribuée à une autre agence.',
+                    'message' => "Tous les colis d'une même expédition doivent être envoyés à la même agence. Une expédition concernée a déjà été attribuée à une autre agence.",
                 ], 422);
             }
 
@@ -279,13 +278,12 @@ class BackofficeColisController extends Controller
                 ->update(['agence_destination_id' => $agenceDestinationId]);
 
             // Mise à jour automatique du statut des expéditions si tous leurs colis sont reçus par le backoffice
-            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+            Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             return response()->json([
                 'success' => true,
                 'message' => count($codes) . ' colis marqués comme réceptionnés avec succès.',
             ]);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['success' => false, 'message' => 'Données invalides.', 'errors' => $e->errors()], 422);
         } catch (Exception $e) {

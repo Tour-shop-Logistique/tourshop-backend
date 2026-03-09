@@ -41,10 +41,18 @@ class AgenceExpeditionController extends Controller
         try {
             $user = $request->user();
             $targetAgenceId = null;
+            $mode = $request->get('mode', 'depart'); // 'depart' | 'reception'
 
             if ($user->type === UserType::AGENCE) {
                 // Pour une agence, on utilise son propre ID
                 $targetAgenceId = $user->agence_id;
+                // Vérification du mode (comme pour le backoffice)
+                if (!in_array($mode, ['depart', 'reception'], true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Mode invalide. Utilisez "depart" (expéditions de l\'agence) ou "reception" (expéditions à réceptionner).',
+                    ], 422);
+                }
             } elseif ($user->type === UserType::BACKOFFICE || $user->type === UserType::ADMIN) {
                 // Pour le backoffice ou admin, on utilise l'agence_id passé en paramètre nommé
                 $targetAgenceId = $request->agence_id;
@@ -71,9 +79,14 @@ class AgenceExpeditionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Agence non spécifiée'], 404);
             }
 
-            $query = Expedition::pourAgence($targetAgenceId)
-                ->withLivreurs()
-                ->with(['colis.category:id,nom']);
+            // Selon le mode : depart = expéditions de l'agence, reception = expéditions à réceptionner (agence_destination_id)
+            if ($user->type === UserType::AGENCE && $mode === 'reception') {
+                $query = Expedition::where('agence_destination_id', $targetAgenceId);
+            } else {
+                $query = Expedition::pourAgence($targetAgenceId);
+            }
+            $query = $query->withLivreurs()
+                ->with(['colis.category:id,nom', 'agenceDestination:id,nom_agence,code_agence,telephone,adresse,ville,commune,pays']);
 
             // Filtrage par statut
             if ($request->filled('status')) {
@@ -97,33 +110,24 @@ class AgenceExpeditionController extends Controller
                 $query->whereDate('created_at', '<=', $request->date_fin);
             }
 
-            // Recherche par référence ou code suivi
-            if ($request->has('search') && $request->search) {
-                $search = $request->search;
-                $query->where(function ($q) use ($search) {
-                    $q
-                        ->where('reference', 'like', "%{$search}%")
-                        ->orWhere('code_suivi_expedition', 'like', "%{$search}%");
-                });
-            }
-
-            $paginator = $query->orderBy('created_at', 'desc')->paginate(10);
+            $expeditions = $query->orderBy('created_at', 'desc')->get();
+            // ->paginate(10);
 
             // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expeditions = collect($paginator->items())->map(function ($expedition) {
-                return $expedition->masquerIdsLivreurs();
-            });
+            // $expeditions = collect($paginator->items())->map(function ($expedition) {
+            //     return $expedition->masquerIdsLivreurs();
+            // });
 
             return response()->json([
                 'success' => true,
                 'message' => 'Liste des expéditions récupérée avec succès',
-                'data' => $expeditions->values()->all(),
-                'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
-                    'total' => $paginator->total(),
-                ]
+                'data' => $expeditions,
+                // 'meta' => [
+                //     'current_page' => $paginator->currentPage(),
+                //     'last_page' => $paginator->lastPage(),
+                //     'per_page' => $paginator->perPage(),
+                //     'total' => $paginator->total(),
+                // ]
             ]);
         } catch (\Exception $e) {
             Log::error('Erreur listing expéditions agence : ' . $e->getMessage());
@@ -564,116 +568,6 @@ class AgenceExpeditionController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Erreur mise à jour statut expédition agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Confirmer la réception du colis à l'agence de départ
-     */
-    public function confirmerReceptionAgenceDepart(Request $request, string $id): JsonResponse
-    {
-        try {
-             $user = request()->user();
-            if ($user->type !== UserType::AGENCE) {
-                return response()->json(['success' => false, 'message' => 'Non autorisé'], 403);
-            }
-
-            $agence = Agence::where('user_id', $user->id)->first();
-            if (!$agence) {
-                return response()->json(['success' => false, 'message' => 'Agence non trouvée'], 404);
-            }
-
-            $expedition = Expedition::pourAgence($agence->id)
-                ->where('statut_expedition', ExpeditionStatus::ACCEPTED)
-                ->find($id);
-
-            if (!$expedition) {
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée ou non éligible'], 404);
-            }
-
-            $expedition->update([
-                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DEPART,
-            ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Réception confirmée à l'agence de départ",
-                'expedition' => $expedition
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur confirmation réception agence départ : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Expédier vers l'entrepôt (transit)
-     */
-    public function expedierVersEntrepot(string $id): JsonResponse
-    {
-        try {
-            $user = request()->user();
-            $agence = Agence::where('user_id', $user->id)->first();
-            $expedition = Expedition::pourAgence($agence->id)
-                ->withLivreurs()
-                ->find($id);
-
-            if (!$expedition) {
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
-            }
-
-            $expedition->update([
-                'statut_expedition' => ExpeditionStatus::EN_TRANSIT_ENTREPOT,
-                'date_deplacement_entrepot' => now()
-            ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Expédition en route vers l'entrepôt",
-                'expedition' => $expedition
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur expédition vers entrepôt : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Confirmer la réception par l'agence de destination
-     */
-    public function confirmerReceptionAgenceDestination(string $id): JsonResponse
-    {
-        try {
-            // Note: Idéalement vérifier que l'utilisateur appartient à l'agence de destination
-            $expedition = Expedition::withLivreurs()
-                ->find($id);
-
-            if (!$expedition) {
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
-            }
-
-            $expedition->update([
-                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION,
-                'date_reception_agence' => now()
-            ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Colis reçu à l'agence de destination",
-                'expedition' => $expedition
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Erreur confirmation réception agence destination : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
         }
     }

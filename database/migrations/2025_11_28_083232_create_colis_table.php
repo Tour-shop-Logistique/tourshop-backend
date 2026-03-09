@@ -33,8 +33,10 @@ return new class extends Migration {
             $table->timestamp('controlled_at')->nullable();
             $table->boolean('is_received_by_backoffice')->default(false);
             $table->timestamp('received_at_backoffice')->nullable();
-            $table->boolean('is_received_by_agence')->default(false);
-            $table->timestamp('received_at_agence')->nullable();
+            $table->boolean('is_received_by_agence_destination')->default(false);
+            $table->timestamp('received_at_agence_destination')->nullable();
+            $table->boolean('is_received_by_agence_depart')->default(false);
+            $table->timestamp('received_at_agence_depart')->nullable();
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

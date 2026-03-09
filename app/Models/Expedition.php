@@ -228,11 +228,15 @@ class Expedition extends Model
             return false;
         }
 
-        $allReceivedByAgence = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence);
+        $allReceivedByAgenceDestination = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence_destination);
         $allReceivedByBackoffice = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_backoffice);
+        $allReceivedByAgenceDepart = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence_depart);
+        $allExpediesVersEntrepot = $colis->every(fn (Colis $c) => (bool) $c->is_expedie_vers_entrepot);
 
-        // Étape 2 : tous les colis reçus par l'agence → RECU_AGENCE_DESTINATION (on vérifie en premier car c'est le statut le plus avancé)
-        if ($allReceivedByAgence) {
+        // Statuts les plus avancés en premier (sans rétrograder)
+
+        // Tous les colis reçus par l'agence de destination → RECU_AGENCE_DESTINATION
+        if ($allReceivedByAgenceDestination) {
             $this->update([
                 'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION,
                 'date_reception_agence' => $this->date_reception_agence ?? now(),
@@ -240,7 +244,7 @@ class Expedition extends Model
             return true;
         }
 
-        // Étape 1 : tous les colis reçus par le backoffice → ARRIVEE_EXPEDITION_SUCCES (sans jamais rétrograder)
+        // Tous les colis reçus par le backoffice → ARRIVEE_EXPEDITION_SUCCES
         $statutsApresArrivee = [
             ExpeditionStatus::RECU_AGENCE_DESTINATION,
             ExpeditionStatus::EN_COURS_LIVRAISON,
@@ -250,6 +254,39 @@ class Expedition extends Model
             $this->update([
                 'statut_expedition' => ExpeditionStatus::ARRIVEE_EXPEDITION_SUCCES,
                 'date_expedition_arrivee' => $this->date_expedition_arrivee ?? now(),
+            ]);
+            return true;
+        }
+
+        // Tous les colis reçus par l'agence de départ (colis enlevés, arrivés en agence) → RECU_AGENCE_DEPART
+        $statutsApresRecuDepart = [
+            ExpeditionStatus::EN_TRANSIT_ENTREPOT,
+            ExpeditionStatus::DEPART_EXPEDITION_SUCCES,
+            ExpeditionStatus::ARRIVEE_EXPEDITION_SUCCES,
+            ExpeditionStatus::RECU_AGENCE_DESTINATION,
+            ExpeditionStatus::EN_COURS_LIVRAISON,
+            ExpeditionStatus::TERMINED,
+        ];
+        if ($allReceivedByAgenceDepart && !in_array($this->statut_expedition, $statutsApresRecuDepart, true)) {
+            $this->update([
+                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DEPART,
+                'date_livraison_agence' => $this->date_livraison_agence ?? now(),
+            ]);
+            return true;
+        }
+
+        // Tous les colis expédiés vers l'entrepôt → EN_TRANSIT_ENTREPOT
+        $statutsApresTransitEntrepot = [
+            ExpeditionStatus::DEPART_EXPEDITION_SUCCES,
+            ExpeditionStatus::ARRIVEE_EXPEDITION_SUCCES,
+            ExpeditionStatus::RECU_AGENCE_DESTINATION,
+            ExpeditionStatus::EN_COURS_LIVRAISON,
+            ExpeditionStatus::TERMINED,
+        ];
+        if ($allExpediesVersEntrepot && !in_array($this->statut_expedition, $statutsApresTransitEntrepot, true)) {
+            $this->update([
+                'statut_expedition' => ExpeditionStatus::EN_TRANSIT_ENTREPOT,
+                'date_deplacement_entrepot' => $this->date_deplacement_entrepot ?? now(),
             ]);
             return true;
         }
