@@ -79,14 +79,16 @@ class AgenceExpeditionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Agence non spécifiée'], 404);
             }
 
-            // Selon le mode : depart = expéditions de l'agence, reception = expéditions à réceptionner (agence_destination_id)
+            // Selon le mode : depart = expéditions de l'agence, reception = expéditions à réceptionner (au moins un colis a agence_destination_id = mon agence)
             if ($user->type === UserType::AGENCE && $mode === 'reception') {
-                $query = Expedition::where('agence_destination_id', $targetAgenceId);
+                $query = Expedition::whereHas('colis', function ($q) use ($targetAgenceId) {
+                    $q->where('agence_destination_id', $targetAgenceId);
+                });
             } else {
                 $query = Expedition::pourAgence($targetAgenceId);
             }
             $query = $query->withLivreurs()
-                ->with(['colis.category:id,nom', 'agenceDestination:id,nom_agence,code_agence,telephone,adresse,ville,commune,pays']);
+                ->with(['colis.category:id,nom', 'colis.agenceDestination:id,nom_agence,code_agence,telephone,adresse,ville,commune,pays']);
 
             // Filtrage par statut
             if ($request->filled('status')) {
@@ -605,55 +607,6 @@ class AgenceExpeditionController extends Controller
         }
     }
 
-    /**
-     * Préparer le retrait en agence
-     */
-    public function preparerRetraitAgence(string $id): JsonResponse
-    {
-        try {
-            $expedition = Expedition::withLivreurs()
-                ->find($id);
-            if (!$expedition)
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
+  
 
-            $expedition->update([
-                'statut_expedition' => ExpeditionStatus::RECU_AGENCE_DESTINATION
-            ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
-
-            return response()->json(['success' => true, 'message' => 'Prêt pour retrait en agence', 'expedition' => $expedition]);
-        } catch (\Exception $e) {
-            Log::error('Erreur préparation retrait agence : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Confirmer le retrait par le client
-     */
-    public function confirmerRetraitClient(string $id): JsonResponse
-    {
-        try {
-            $expedition = Expedition::withLivreurs()
-                ->find($id);
-            if (!$expedition)
-                return response()->json(['success' => false, 'message' => 'Expédition non trouvée'], 404);
-
-            $expedition->update([
-                'statut_expedition' => ExpeditionStatus::TERMINED,
-                'date_reception_client' => now(),
-                'code_validation_reception' => null
-            ]);
-
-            // Masquer les IDs des livreurs car les relations livreur sont chargées
-            $expedition->masquerIdsLivreurs();
-
-            return response()->json(['success' => true, 'message' => 'Retrait confirmé', 'expedition' => $expedition]);
-        } catch (\Exception $e) {
-            Log::error('Erreur confirmation retrait client : ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Erreur', 'error' => $e->getMessage()], 500);
-        }
-    }
 }

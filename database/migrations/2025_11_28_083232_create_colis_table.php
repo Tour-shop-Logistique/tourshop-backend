@@ -37,6 +37,10 @@ return new class extends Migration {
             $table->timestamp('received_at_agence_destination')->nullable();
             $table->boolean('is_received_by_agence_depart')->default(false);
             $table->timestamp('received_at_agence_depart')->nullable();
+            $table->boolean('is_collected_by_client')->default(false);
+            $table->timestamp('collected_at')->nullable();
+            $table->string('code_validation_retrait')->nullable();
+            $table->timestamp('code_validation_retrait_expires_at')->nullable();
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

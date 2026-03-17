@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Agence\AgenceTarifSimpleController;
 use App\Http\Controllers\Api\Agence\AgenceUserController;
 use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
+use App\Http\Controllers\Api\Backoffice\BackofficeDashboardController;
 use App\Http\Controllers\Api\Backoffice\BackofficeExpeditionController;
 use App\Http\Controllers\Api\Backoffice\BackofficeUserController;
 use App\Http\Controllers\Api\Backoffice\CategoryProductController;
@@ -77,8 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Workflow opérationnel agence
             Route::post('/configure-delivery/{id}', [AgenceExpeditionController::class, 'configurerLivraisonDomicile']);
-            Route::post('/prepare-pickup/{id}', [AgenceExpeditionController::class, 'preparerRetraitAgence']);
-            Route::post('/confirm-pickup/{id}', [AgenceExpeditionController::class, 'confirmerRetraitClient']);
+          
         });
 
         // Côté Livreur
@@ -130,6 +130,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/receive-colis-depart', [AgenceColisController::class, 'markMultipleAsReceivedAtDepart']);
         Route::put('/receive-colis-destination', [AgenceColisController::class, 'markMultipleAsReceivedAtDestination']);
         Route::put('/send-colis-to-entrepot', [AgenceColisController::class, 'markMultipleAsShippedToWarehouse']);
+        Route::post('/initier-retrait-colis', [AgenceColisController::class, 'initierRetraitColis']);
+        Route::post('/valider-retrait-colis', [AgenceColisController::class, 'validerRetraitColis']);
     });
 
     // Routes backoffice
@@ -155,6 +157,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gestion des expéditions pour le backoffice
         Route::get('/list-expedition', [BackofficeExpeditionController::class, 'listExpeditions']);
         Route::put('/transit-expedition/{id}', [BackofficeExpeditionController::class, 'transitExpedition']);
+
+        // Tableau de bord backoffice logistique
+        Route::get('/dashboard', [BackofficeDashboardController::class, 'index']);
     });
 
     // Routes tarification par le backoffice

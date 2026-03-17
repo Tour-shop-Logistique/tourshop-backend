@@ -13,7 +13,6 @@ return new class extends Migration {
         Schema::create('expeditions', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('agence_id')->index();
-            $table->uuid('agence_destination_id')->nullable()->index();
             $table->uuid('user_id')->nullable()->index();
             $table->boolean('is_demande_client')->nullable();
 
@@ -24,7 +23,6 @@ return new class extends Migration {
 
             $table->string('reference')->unique();
             $table->string('code_suivi_expedition')->unique()->nullable();
-            $table->string('code_validation_reception')->nullable();
 
             $table->jsonb('expediteur');
             $table->jsonb('destinataire');
@@ -48,7 +46,6 @@ return new class extends Migration {
             $table->decimal('frais_enlevement_domicile', 12, 2)->default(0);
             $table->decimal('frais_livraison_domicile', 12, 2)->default(0);
             $table->decimal('frais_emballage', 12, 2)->default(0);
-            $table->decimal('frais_enlevement_agence', 12, 2)->default(0);
             $table->decimal('frais_retard_retrait', 12, 2)->default(0);
             $table->decimal('frais_annexes', 12, 2)->default(0);
 
@@ -82,6 +79,8 @@ return new class extends Migration {
             // Commissions calculées
             $table->decimal('commission_livreur_enlevement', 12, 2)->default(0);
             $table->decimal('commission_agence_enlevement', 12, 2)->default(0);
+            $table->decimal('commission_emballage_agence', 12, 2)->default(0);
+            $table->decimal('commission_emballage_backoffice', 12, 2)->default(0);
             $table->decimal('commission_livreur_livraison', 12, 2)->default(0);
             $table->decimal('commission_agence_livraison', 12, 2)->default(0);
             $table->decimal('commission_agence_retard', 12, 2)->default(0);
@@ -93,7 +92,6 @@ return new class extends Migration {
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('agence_id')->references('id')->on('agences')->onDelete('cascade');
-            $table->foreign('agence_destination_id')->references('id')->on('agences')->onDelete('set null');
         });
     }
 

@@ -25,7 +25,6 @@ class Expedition extends Model
 
     protected $fillable = [
         'agence_id',
-        'agence_destination_id',
         'user_id',
         'livreur_enlevement_id',
         'livreur_deplacement_id',
@@ -54,7 +53,6 @@ class Expedition extends Model
         'frais_enlevement_domicile', // pour livreur et agence
         'frais_livraison_domicile', // pour livreur et agence
         'frais_emballage', // pour agence
-        'frais_enlevement_agence', // pour backoffice
         'frais_retard_retrait', // pour agence et backoffice
         'frais_annexes', // pour client
 
@@ -89,11 +87,12 @@ class Expedition extends Model
 
         'motif_annulation',
         'code_suivi_expedition',
-        'code_validation_reception',
 
         // Commissions [{}]
         'commission_livreur_enlevement', // 85% sur les frais d'enlevement à domicile
         'commission_agence_enlevement', // 15% sur les frais d'enlevement à domicile
+        'commission_emballage_agence', // 15% sur les frais d'emballage
+        'commission_emballage_backoffice', // 85% sur les frais d'emballage
         'commission_livreur_livraison', // 90% sur les frais de livraison à domicile
         'commission_agence_livraison', // 10% sur les frais de livraison à domicile
         'commission_agence_retard', // 40% sur les frais de retard de retrait
@@ -114,7 +113,6 @@ class Expedition extends Model
         'frais_enlevement_domicile' => 'decimal:2',
         'frais_livraison_domicile' => 'decimal:2',
         'frais_emballage' => 'decimal:2',
-        'frais_enlevement_agence' => 'decimal:2',
         'frais_retard_retrait' => 'decimal:2',
         'frais_annexes' => 'decimal:2',
 
@@ -145,6 +143,8 @@ class Expedition extends Model
         // Commissions
         'commission_livreur_enlevement' => 'decimal:2',
         'commission_agence_enlevement' => 'decimal:2',
+        'commission_emballage_agence' => 'decimal:2',
+        'commission_emballage_backoffice' => 'decimal:2',
         'commission_livreur_livraison' => 'decimal:2',
         'commission_agence_livraison' => 'decimal:2',
         'commission_agence_retard' => 'decimal:2',
@@ -164,12 +164,6 @@ class Expedition extends Model
     public function agence(): BelongsTo
     {
         return $this->belongsTo(Agence::class);
-    }
-
-    /** Agence de destination désignée par le backoffice pour réceptionner les colis. */
-    public function agenceDestination(): BelongsTo
-    {
-        return $this->belongsTo(Agence::class, 'agence_destination_id');
     }
 
     public function user(): BelongsTo
@@ -232,8 +226,18 @@ class Expedition extends Model
         $allReceivedByBackoffice = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_backoffice);
         $allReceivedByAgenceDepart = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence_depart);
         $allExpediesVersEntrepot = $colis->every(fn (Colis $c) => (bool) $c->is_expedie_vers_entrepot);
+        $allCollectedByClient = $colis->every(fn (Colis $c) => (bool) $c->is_collected_by_client);
 
         // Statuts les plus avancés en premier (sans rétrograder)
+
+        // Tous les colis récupérés par le client -> TERMINED
+        if ($allCollectedByClient) {
+            $this->update([
+                'statut_expedition' => ExpeditionStatus::TERMINED,
+                'date_reception_client' => $this->date_reception_client ?? now(),
+            ]);
+            return true;
+        }
 
         // Tous les colis reçus par l'agence de destination → RECU_AGENCE_DESTINATION
         if ($allReceivedByAgenceDestination) {
@@ -403,7 +407,6 @@ class Expedition extends Model
         static::creating(function ($expedition) {
 
             $expedition->{$expedition->getKeyName()} = (string) Str::uuid();
-            $expedition->code_validation_reception = strtoupper(Str::random(6));
 
             if (empty($expedition->reference)) {
                 $expedition->reference = self::genererReference();

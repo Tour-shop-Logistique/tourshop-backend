@@ -237,19 +237,6 @@ class BackofficeColisController extends Controller
 
             $query = Colis::whereIn('code_colis', $codes);
 
-            // Tous les colis d'une même expédition doivent être attribués à la même agence
-            $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
-            $expeditionsAvecAutreAgence = Expedition::whereIn('id', $expeditionIds)
-                ->whereNotNull('agence_destination_id')
-                ->where('agence_destination_id', '!=', $agenceDestinationId)
-                ->exists();
-            if ($expeditionsAvecAutreAgence) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Tous les colis d'une même expédition doivent être envoyés à la même agence. Une expédition concernée a déjà été attribuée à une autre agence.",
-                ], 422);
-            }
-
             // Vérification du pays pour le backoffice
             if ($user->type === UserType::BACKOFFICE) {
                 if (!$user->backoffice) {
@@ -270,14 +257,11 @@ class BackofficeColisController extends Controller
             $query->update([
                 'is_received_by_backoffice' => true,
                 'received_at_backoffice' => now(),
+                'agence_destination_id' => $agenceDestinationId,
             ]);
 
-            // Désigner l'agence qui devra réceptionner les colis (uniquement si pas déjà définie pour cette expédition)
-            Expedition::whereIn('id', $expeditionIds)
-                ->whereNull('agence_destination_id')
-                ->update(['agence_destination_id' => $agenceDestinationId]);
-
             // Mise à jour automatique du statut des expéditions si tous leurs colis sont reçus par le backoffice
+            $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
             Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             return response()->json([

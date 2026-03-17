@@ -20,6 +20,7 @@ class Colis extends Model
     protected $fillable = [
         'code_colis',
         'expedition_id',
+        'agence_destination_id',
         'category_id',
         'designation',
         'articles',
@@ -45,6 +46,10 @@ class Colis extends Model
         'received_at_agence_depart',
         'is_expedie_vers_entrepot',
         'expedie_vers_entrepot_at',
+        'is_collected_by_client',
+        'collected_at',
+        'code_validation_retrait',
+        'code_validation_retrait_expires_at',
     ];
 
     protected $casts = [
@@ -70,6 +75,9 @@ class Colis extends Model
         'received_at_agence_depart' => 'datetime',
         'is_expedie_vers_entrepot' => 'boolean',
         'expedie_vers_entrepot_at' => 'datetime',
+        'is_collected_by_client' => 'boolean',
+        'collected_at' => 'datetime',
+        'code_validation_retrait_expires_at' => 'datetime',
     ];
 
     public function expedition(): BelongsTo
@@ -80,6 +88,11 @@ class Colis extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(CategoryProduct::class, 'category_id');
+    }
+
+    public function agenceDestination(): BelongsTo
+    {
+        return $this->belongsTo(Agence::class, 'agence_destination_id');
     }
 
     protected static function boot()
