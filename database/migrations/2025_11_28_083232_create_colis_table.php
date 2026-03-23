@@ -41,6 +41,9 @@ return new class extends Migration {
             $table->timestamp('collected_at')->nullable();
             $table->string('code_validation_retrait')->nullable();
             $table->timestamp('code_validation_retrait_expires_at')->nullable();
+            $table->timestamp('date_limite_retrait')->nullable();
+            $table->boolean('is_retard_retrait')->default(false);
+            $table->decimal('frais_retard_retrait', 12, 2)->default(0);
             $table->timestamps();
 
             $table->foreign('expedition_id')->references('id')->on('expeditions')->onDelete('set null');

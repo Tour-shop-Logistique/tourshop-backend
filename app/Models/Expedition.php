@@ -22,6 +22,8 @@ class Expedition extends Model
     protected $primaryKey = 'id';
     public $incrementing = false;
     protected $keyType = 'string';
+    protected $appends = ['commission_details', 'accounting_details'];
+    protected $hidden = ['commission_details', 'accounting_details'];
 
     protected $fillable = [
         'agence_id',
@@ -52,7 +54,7 @@ class Expedition extends Model
         // Frais
         'frais_enlevement_domicile', // pour livreur et agence
         'frais_livraison_domicile', // pour livreur et agence
-        'frais_emballage', // pour agence
+        'frais_emballage', // pour agence et backoffice
         'frais_retard_retrait', // pour agence et backoffice
         'frais_annexes', // pour client
 
@@ -67,8 +69,6 @@ class Expedition extends Model
         'coord_livraison', // coordinates
         'instructions_livraison',
 
-        'delai_retrait',
-        'is_retard_retrait',
         'is_paiement_credit',
         'statut_expedition',
         'statut_paiement',
@@ -81,22 +81,11 @@ class Expedition extends Model
         'date_expedition_depart', // Date d'expedition du colis à l'étranger
         'date_expedition_arrivee', // Date d'arrivée du colis de l'étranger
         'date_reception_agence', // Date de reception par l'agence du colis expédié
-        'date_limite_retrait', // Date limite pour le retrait de colis par le client (72h apres reception en agence)
         'date_reception_client', // Date de reception du colis par le client
         'date_annulation', // Date d'annulation de l'expedition 
 
         'motif_annulation',
         'code_suivi_expedition',
-
-        // Commissions [{}]
-        'commission_livreur_enlevement', // 85% sur les frais d'enlevement à domicile
-        'commission_agence_enlevement', // 15% sur les frais d'enlevement à domicile
-        'commission_emballage_agence', // 15% sur les frais d'emballage
-        'commission_emballage_backoffice', // 85% sur les frais d'emballage
-        'commission_livreur_livraison', // 90% sur les frais de livraison à domicile
-        'commission_agence_livraison', // 10% sur les frais de livraison à domicile
-        'commission_agence_retard', // 40% sur les frais de retard de retrait
-        'commission_tourshop_retard', // 60% sur les frais de retard de retrait
     ];
 
     protected $casts = [
@@ -120,7 +109,6 @@ class Expedition extends Model
         'is_enlevement_domicile' => 'boolean',
         'distance_domicile_agence' => 'decimal:2',
         'is_livraison_domicile' => 'boolean',
-        'is_retard_retrait' => 'boolean',
         'is_paiement_credit' => 'boolean',
         'is_demande_client' => 'boolean',
 
@@ -136,19 +124,8 @@ class Expedition extends Model
         'date_expedition_depart' => 'datetime',
         'date_expedition_arrivee' => 'datetime',
         'date_reception_agence' => 'datetime',
-        'date_limite_retrait' => 'datetime',
         'date_reception_client' => 'datetime',
         'date_annulation' => 'datetime',
-
-        // Commissions
-        'commission_livreur_enlevement' => 'decimal:2',
-        'commission_agence_enlevement' => 'decimal:2',
-        'commission_emballage_agence' => 'decimal:2',
-        'commission_emballage_backoffice' => 'decimal:2',
-        'commission_livreur_livraison' => 'decimal:2',
-        'commission_agence_livraison' => 'decimal:2',
-        'commission_agence_retard' => 'decimal:2',
-        'commission_tourshop_retard' => 'decimal:2',
 
         // Contacts JSON
         'expediteur' => 'array',
@@ -159,6 +136,100 @@ class Expedition extends Model
     public function colis(): HasMany
     {
         return $this->hasMany(Colis::class, 'expedition_id');
+    }
+
+    /**
+     * Calculer dynamiquement les commissions (non stockées en DB).
+     * Retourne un objet JSON (array PHP) avec tous les paliers.
+     */
+    public function getCommissionDetailsAttribute(): array
+    {
+        $service = app(\App\Services\CommissionService::class);
+
+        // Bases de calcul
+        $fraisEnlevement = (float) ($this->frais_enlevement_domicile ?? 0);
+        $fraisLivraison = (float) ($this->frais_livraison_domicile ?? 0);
+        $fraisEmballage = (float) ($this->frais_emballage ?? 0);
+        $fraisRetard = (float) ($this->frais_retard_retrait ?? 0);
+
+        $commissions = [
+            // Enlèvement (Livreur 85%, Agence 15% par défaut)
+            'enlevement' => [
+                'total' => $fraisEnlevement,
+                'livreur' => $service->calculateCommission($fraisEnlevement, 'commission_livreur_enlevement', 85),
+                'agence' => $service->calculateCommission($fraisEnlevement, 'commission_agence_enlevement', 15),
+            ],
+            // Livraison (Livreur 90%, Agence 10% par défaut)
+            'livraison' => [
+                'total' => $fraisLivraison,
+                'livreur' => $service->calculateCommission($fraisLivraison, 'commission_livreur_livraison', 90),
+                'agence' => $service->calculateCommission($fraisLivraison, 'commission_agence_livraison', 10),
+            ],
+            // Emballage (Agence 15%, Backoffice 85% par défaut)
+            'emballage' => [
+                'total' => $fraisEmballage,
+                'agence' => $service->calculateCommission($fraisEmballage, 'commission_emballage_agence', 15),
+                'backoffice' => $service->calculateCommission($fraisEmballage, 'commission_emballage_backoffice', 85),
+            ],
+            // Retard (Agence 40%, TourShop 60% par défaut)
+            'retard' => [
+                'total' => $fraisRetard,
+                'agence' => $service->calculateCommission($fraisRetard, 'commission_agence_retard', 40),
+                'tourshop' => $service->calculateCommission($fraisRetard, 'commission_tourshop_retard', 60),
+            ],
+        ];
+
+        // Calcul du total global des commissions générées
+        $totalGlobal = 0;
+        foreach ($commissions as $type) {
+            foreach ($type as $key => $value) {
+                if ($key !== 'total') {
+                    $totalGlobal += $value;
+                }
+            }
+        }
+
+        $commissions['total_global_commissions'] = $totalGlobal;
+
+        return $commissions;
+    }
+
+    /**
+     * Détails de la répartition financière (Qui gagne quoi ?)
+     */
+    public function getAccountingDetailsAttribute(): array
+    {
+        // On récupère les calculs de base via l'accessor partenaire
+        $com = $this->commission_details;
+
+        // Part du Backoffice (Montant de base + Frais annexes + part emballage + part retard TourShop)
+        $backofficePart = (float) ($this->montant_base ?? 0)
+                        + (float) ($this->frais_annexes ?? 0)
+                        + ($com['emballage']['backoffice'] ?? 0)
+                        + ($com['retard']['tourshop'] ?? 0);
+
+        // Part de l'Agence (Montant prestation + com enlèvement + com livraison + part emballage + part retard agence)
+        $agencePart = (float) ($this->montant_prestation ?? 0)
+                    + ($com['enlevement']['agence'] ?? 0)
+                    + ($com['livraison']['agence'] ?? 0)
+                    + ($com['emballage']['agence'] ?? 0)
+                    + ($com['retard']['agence'] ?? 0);
+
+        // Part des livreurs
+        $livreurPart = ($com['enlevement']['livreur'] ?? 0)
+                     + ($com['livraison']['livreur'] ?? 0);
+
+        return [
+            'backoffice' => $backofficePart,
+            'agence' => $agencePart,
+            'livreur' => $livreurPart,
+            'total_client_due' => (float) ($this->montant_expedition ?? 0)
+                            + (float) ($this->frais_emballage ?? 0)
+                            + (float) ($this->frais_enlevement_domicile ?? 0)
+                            + (float) ($this->frais_livraison_domicile ?? 0)
+                            + (float) ($this->frais_retard_retrait ?? 0)
+                            + (float) ($this->frais_annexes ?? 0)
+        ];
     }
 
     public function agence(): BelongsTo
@@ -222,11 +293,11 @@ class Expedition extends Model
             return false;
         }
 
-        $allReceivedByAgenceDestination = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence_destination);
-        $allReceivedByBackoffice = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_backoffice);
-        $allReceivedByAgenceDepart = $colis->every(fn (Colis $c) => (bool) $c->is_received_by_agence_depart);
-        $allExpediesVersEntrepot = $colis->every(fn (Colis $c) => (bool) $c->is_expedie_vers_entrepot);
-        $allCollectedByClient = $colis->every(fn (Colis $c) => (bool) $c->is_collected_by_client);
+        $allReceivedByAgenceDestination = $colis->every(fn(Colis $c) => (bool) $c->is_received_by_agence_destination);
+        $allReceivedByBackoffice = $colis->every(fn(Colis $c) => (bool) $c->is_received_by_backoffice);
+        $allReceivedByAgenceDepart = $colis->every(fn(Colis $c) => (bool) $c->is_received_by_agence_depart);
+        $allExpediesVersEntrepot = $colis->every(fn(Colis $c) => (bool) $c->is_expedie_vers_entrepot);
+        $allCollectedByClient = $colis->every(fn(Colis $c) => (bool) $c->is_collected_by_client);
 
         // Statuts les plus avancés en premier (sans rétrograder)
 

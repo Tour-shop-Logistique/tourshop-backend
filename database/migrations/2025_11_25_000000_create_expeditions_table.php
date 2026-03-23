@@ -59,8 +59,6 @@ return new class extends Migration {
             $table->string('coord_livraison')->nullable();
             $table->text('instructions_livraison')->nullable();
 
-            $table->string('delai_retrait')->nullable();
-            $table->boolean('is_retard_retrait')->default(false);
             $table->boolean('is_paiement_credit')->default(false);
 
             // Dates du workflow
@@ -71,21 +69,9 @@ return new class extends Migration {
             $table->timestamp('date_expedition_depart')->nullable();
             $table->timestamp('date_expedition_arrivee')->nullable();
             $table->timestamp('date_reception_agence')->nullable();
-            $table->timestamp('date_limite_retrait')->nullable();
             $table->timestamp('date_reception_client')->nullable();
             $table->timestamp('date_annulation')->nullable();
             $table->text('motif_annulation')->nullable();
-
-            // Commissions calculées
-            $table->decimal('commission_livreur_enlevement', 12, 2)->default(0);
-            $table->decimal('commission_agence_enlevement', 12, 2)->default(0);
-            $table->decimal('commission_emballage_agence', 12, 2)->default(0);
-            $table->decimal('commission_emballage_backoffice', 12, 2)->default(0);
-            $table->decimal('commission_livreur_livraison', 12, 2)->default(0);
-            $table->decimal('commission_agence_livraison', 12, 2)->default(0);
-            $table->decimal('commission_agence_retard', 12, 2)->default(0);
-            $table->decimal('commission_tourshop_retard', 12, 2)->default(0);
-
             $table->timestamps();
 
             // Foreign Keys (principales)

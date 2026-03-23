@@ -26,24 +26,30 @@ class BackofficeExpeditionController extends Controller
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
             }
 
-            $mode = $request->get('mode', 'depart'); // 'depart' ou 'arrivee'
 
             $query = Expedition::query();
 
             // Filtrage directionnel par pays pour le backoffice
             if ($user->type === UserType::BACKOFFICE) {
+
                 if (!$user->backoffice) {
                     return response()->json(['success' => false, 'message' => 'Aucun backoffice rattaché.'], 403);
                 }
 
                 $country = $user->backoffice->pays;
 
-                if ($mode === 'arrivee') {
-                    // Expéditions en transit international à destination du pays du backoffice
-                    $query->where('pays_destination', $country);
-                } else {
-                    // Par défaut : mode "depart" — expéditions partant du pays du backoffice
-                    $query->where('pays_depart', $country);
+                if ($request->filled('mode')) {
+                    $mode = $request->get('mode'); // 'depart' ou 'arrivee'
+                    if ($mode === 'arrivee') {
+                        // Expéditions en transit international à destination du pays du backoffice
+                        $query->where('pays_destination', $country);
+                    } elseif ($mode === 'depart') {
+                        // Par défaut : mode "depart" — expéditions partant du pays du backoffice
+                        $query->where('pays_depart', $country);
+                    } else {
+                        // Expéditions partant ou arrivant du pays du backoffice
+                        $query->where('pays_depart', $country)->orWhere('pays_destination', $country);
+                    }
                 }
             }
 
@@ -86,6 +92,8 @@ class BackofficeExpeditionController extends Controller
                 ])
                 ->latest()
                 ->get();
+
+            $expeditions->each->makeVisible(['commission_details']);
 
             return response()->json([
                 'success' => true,

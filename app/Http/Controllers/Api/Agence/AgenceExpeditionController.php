@@ -41,18 +41,11 @@ class AgenceExpeditionController extends Controller
         try {
             $user = $request->user();
             $targetAgenceId = null;
-            $mode = $request->get('mode', 'depart'); // 'depart' | 'reception'
 
             if ($user->type === UserType::AGENCE) {
                 // Pour une agence, on utilise son propre ID
                 $targetAgenceId = $user->agence_id;
-                // Vérification du mode (comme pour le backoffice)
-                if (!in_array($mode, ['depart', 'reception'], true)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Mode invalide. Utilisez "depart" (expéditions de l\'agence) ou "reception" (expéditions à réceptionner).',
-                    ], 422);
-                }
+
             } elseif ($user->type === UserType::BACKOFFICE || $user->type === UserType::ADMIN) {
                 // Pour le backoffice ou admin, on utilise l'agence_id passé en paramètre nommé
                 $targetAgenceId = $request->agence_id;
@@ -80,13 +73,25 @@ class AgenceExpeditionController extends Controller
             }
 
             // Selon le mode : depart = expéditions de l'agence, reception = expéditions à réceptionner (au moins un colis a agence_destination_id = mon agence)
-            if ($user->type === UserType::AGENCE && $mode === 'reception') {
-                $query = Expedition::whereHas('colis', function ($q) use ($targetAgenceId) {
+            if ($request->filled('mode')) {
+                $mode = $request->get('mode'); // 'depart' | 'reception'
+                if ($mode === 'reception') {
+                    $query = Expedition::whereHas('colis', function ($q) use ($targetAgenceId) {
+                        $q->where('agence_destination_id', $targetAgenceId);
+                    });
+                } elseif ($mode === 'depart') {
+                    $query = Expedition::pourAgence($targetAgenceId);
+                } else {
+                    $query = Expedition::pourAgence($targetAgenceId)->orWhereHas('colis', function ($q) use ($targetAgenceId) {
+                        $q->where('agence_destination_id', $targetAgenceId);
+                    });
+                }
+            } else {
+                $query = Expedition::pourAgence($targetAgenceId)->orWhereHas('colis', function ($q) use ($targetAgenceId) {
                     $q->where('agence_destination_id', $targetAgenceId);
                 });
-            } else {
-                $query = Expedition::pourAgence($targetAgenceId);
             }
+            
             $query = $query->withLivreurs()
                 ->with(['colis.category:id,nom', 'colis.agenceDestination:id,nom_agence,code_agence,telephone,adresse,ville,commune,pays']);
 
@@ -113,6 +118,7 @@ class AgenceExpeditionController extends Controller
             }
 
             $expeditions = $query->orderBy('created_at', 'desc')->get();
+            $expeditions->each->makeVisible(['commission_details']);
             // ->paginate(10);
 
             // Masquer les IDs des livreurs car les relations livreur sont chargées
@@ -607,6 +613,6 @@ class AgenceExpeditionController extends Controller
         }
     }
 
-  
+
 
 }

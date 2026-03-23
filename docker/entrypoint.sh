@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# Mettre en cache la configuration et les routes
-echo "Caching config..."
-php artisan config:cache
-echo "Caching routes..."
-php artisan route:cache
+# Nettoyer les caches pour éviter les problèmes de déploiement
+echo "Clearing caches..."
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
 
 # Exécuter les migrations (si nécessaire)
 # echo "Running migrations..."

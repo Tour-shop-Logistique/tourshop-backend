@@ -17,7 +17,7 @@ class BackofficeColisController extends Controller
      * Basé sur les pays couverts par les zones rattachées au backoffice.
      */
 
-    /*public function listColis(Request $request)
+    public function listColis(Request $request)
     {
         try {
             $user = $request->user();
@@ -117,11 +117,12 @@ class BackofficeColisController extends Controller
             Log::error('Erreur liste colis backoffice : ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Erreur serveur.', 'error' => $e->getMessage()], 500);
         }
-    }*/
+    }
 
     /**
      * Détails d'un colis pour le backoffice.
      */
+    
     public function showColis(Request $request, string $code)
     {
         try {

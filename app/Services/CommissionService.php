@@ -8,26 +8,33 @@ use Illuminate\Support\Facades\Cache;
 class CommissionService
 {
     /**
-     * Récupère un paramètre de commission depuis le cache.
-     * Retourne l'objet complet pour éviter les requêtes multiples.
+     * Cache statique en mémoire vive pour la durée de la requête actuelle.
      */
-    private function getSettingFromCache(string $key): ?CommissionSetting
+    private static $settingsCache = null;
+
+    /**
+     * Charge tous les réglages actifs d'un coup (Évite le N+1 en boucle).
+     */
+    private function getAllSettings()
     {
-        return Cache::remember("commission_setting_{$key}", 3600, function () use ($key) {
-            return CommissionSetting::where('key', $key)->where('is_active', true)->first();
-        });
+        if (self::$settingsCache === null) {
+            // On récupère tout le tableau indexé par clé
+            self::$settingsCache = CommissionSetting::where('is_active', true)->get()->keyBy('key');
+        }
+        return self::$settingsCache;
     }
 
     /**
      * Calculate the commission amount based on a base amount and a key.
-     * Utilise le cache pour éviter les requêtes DB répétées.
+     * Utilise le cache mémoire pour être ultra-rapide en boucle.
      */
     public function calculateCommission(float $amount, string $key, float $defaultRate = 0.0): float
     {
-        $setting = $this->getSettingFromCache($key);
+        $settings = $this->getAllSettings();
+        $setting = $settings->get($key);
 
         if (!$setting) {
-            // Fallback to pourcentage calculation with default rate
+            // Fallback au calcul par défaut si pas en base
             return $amount * ($defaultRate / 100);
         }
 

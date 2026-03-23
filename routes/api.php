@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Controllers\Api\Agence\AgenceAccountingController;
 use App\Http\Controllers\Api\Agence\AgenceColisController;
 use App\Http\Controllers\Api\Agence\AgenceController;
 use App\Http\Controllers\Api\Agence\AgenceExpeditionController;
 use App\Http\Controllers\Api\Agence\AgenceTarifGroupageController;
 use App\Http\Controllers\Api\Agence\AgenceTarifSimpleController;
 use App\Http\Controllers\Api\Agence\AgenceUserController;
+use App\Http\Controllers\Api\Backoffice\BackofficeAccountingController;
 use App\Http\Controllers\Api\Backoffice\BackofficeColisController;
 use App\Http\Controllers\Api\Backoffice\BackofficeController;
 use App\Http\Controllers\Api\Backoffice\BackofficeDashboardController;
@@ -132,6 +134,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/send-colis-to-entrepot', [AgenceColisController::class, 'markMultipleAsShippedToWarehouse']);
         Route::post('/initier-retrait-colis', [AgenceColisController::class, 'initierRetraitColis']);
         Route::post('/valider-retrait-colis', [AgenceColisController::class, 'validerRetraitColis']);
+
+        // Comptabilité agence
+        Route::get('/accounting', [AgenceAccountingController::class, 'report']);
     });
 
     // Routes backoffice
@@ -149,7 +154,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/delete-user/{user}', [BackofficeUserController::class, 'deleteUser']);
 
         // Gestion des colis pour le contrôle backoffice
-        // Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
+        Route::get('/list-colis', [BackofficeColisController::class, 'listColis']);
         Route::get('/show-colis/{code}', [BackofficeColisController::class, 'showColis']);
         Route::put('/control-colis', [BackofficeColisController::class, 'markMultipleAsControlled']);
         Route::put('/receive-colis', [BackofficeColisController::class, 'markMultipleAsReceived']);
@@ -160,6 +165,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Tableau de bord backoffice logistique
         Route::get('/dashboard', [BackofficeDashboardController::class, 'index']);
+
+        // Comptabilité
+        Route::get('/accounting', [BackofficeAccountingController::class, 'report']);
     });
 
     // Routes tarification par le backoffice

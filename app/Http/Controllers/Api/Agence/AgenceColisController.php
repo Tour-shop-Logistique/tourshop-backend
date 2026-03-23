@@ -37,12 +37,12 @@ class AgenceColisController extends Controller
             if ($request->boolean('a_receptionner')) {
                 $query = Colis::where('agence_destination_id', $agenceId)
                     ->where('is_received_by_backoffice', $request->boolean('a_receptionner'))
-                    ->with(['expedition:id,reference,statut_expedition,pays_depart,pays_destination', 'agenceDestination:id,nom_agence,code_agence', 'category:id,nom']);
+                    ->with(['expedition:id,reference,statut_expedition,statut_paiement,pays_depart,pays_destination', 'agenceDestination:id,nom_agence,code_agence', 'category:id,nom']);
             } else {
                 // Colis des expéditions de l'agence (agence de départ)
                 $query = Colis::whereHas('expedition', function ($q) use ($agenceId) {
                     $q->where('agence_id', $agenceId);
-                })->with(['expedition:id,reference,statut_expedition,pays_depart,pays_destination', 'category:id,nom']);
+                })->with(['expedition:id,reference,statut_expedition,statut_paiement,pays_depart,pays_destination', 'category:id,nom']);
             }
 
             // Filtrage par statut de l'expédition
@@ -72,11 +72,16 @@ class AgenceColisController extends Controller
                 });
             }
 
-            if ($request->boolean('is_collected')) {
-                $query->where('is_collected_by_client', $request->boolean('is_collected'));
+            if ($request->has('is_collected')) {
+                $query->where('agence_destination_id', $agenceId)
+                    ->where('is_received_by_agence_destination', true)
+                    ->where('is_collected_by_client', $request->boolean('is_collected'));
             }
 
             $colis = $query->latest()->get();
+
+            // Rendre visible ces champs spécifiquement pour cette API
+            $colis->each->makeVisible(['potential_frais_retard', 'total_a_payer_client']);
 
             return response()->json([
                 'success' => true,
@@ -109,9 +114,9 @@ class AgenceColisController extends Controller
             }
 
             // Vérifier que le colis appartient à l'agence de l'utilisateur (départ ou destination)
-            $isAuthorized = ($user->type === UserType::ADMIN) || 
-                            ($colis->expedition->agence_id === $user->agence_id) || 
-                            ($colis->agence_destination_id === $user->agence_id);
+            $isAuthorized = ($user->type === UserType::ADMIN) ||
+                ($colis->expedition->agence_id === $user->agence_id) ||
+                ($colis->agence_destination_id === $user->agence_id);
 
             if (!$isAuthorized) {
                 return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
@@ -153,17 +158,26 @@ class AgenceColisController extends Controller
             $agenceId = $user->agence_id;
 
             // Seuls les colis dont l'agence destination est cette agence peuvent être marqués reçus
-            $query = Colis::whereIn('code_colis', $codes)
+            $colisQuery = Colis::whereIn('code_colis', $codes)
                 ->where('agence_destination_id', $agenceId);
 
-            $updated = $query->update([
-                'is_received_by_agence_destination' => true,
-                'received_at_agence_destination' => now(),
-            ]);
+            $receivedAt = now();
+            $dateLimite = (clone $receivedAt)->addHours(72);
+
+            $colisList = $colisQuery->get();
+            foreach ($colisList as $colis) {
+                $colis->update([
+                    'is_received_by_agence_destination' => true,
+                    'received_at_agence_destination' => $receivedAt,
+                    'date_limite_retrait' => $dateLimite,
+                ]);
+            }
+
+            $updated = $colisList->count();
 
             // Mise à jour automatique du statut des expéditions si tous leurs colis sont reçus par l'agence
-            $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
-            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+            $expeditionIds = $colisList->pluck('expedition_id')->unique();
+            Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             // TODO: Notifier le client de la réception de ses colis spécifiques
             // Logique de notification ICI (SMS/Mail pour chaque colis ou groupé)
@@ -180,7 +194,7 @@ class AgenceColisController extends Controller
         }
     }
 
-    
+
     /**
      * Confirmer la réception de colis à l'agence de départ (colis enlevés chez le client, arrivés en agence).
      * On indique les colis reçus par code ; si tous les colis d'une expédition sont reçus, le statut passe à RECU_AGENCE_DEPART.
@@ -219,7 +233,7 @@ class AgenceColisController extends Controller
 
             // Mise à jour automatique du statut des expéditions si tous leurs colis sont reçus à l'agence de départ
             $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
-            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+            Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             return response()->json([
                 'success' => true,
@@ -272,7 +286,7 @@ class AgenceColisController extends Controller
 
             // Mise à jour automatique du statut des expéditions si tous leurs colis sont expédiés vers l'entrepôt
             $expeditionIds = Colis::whereIn('code_colis', $codes)->pluck('expedition_id')->unique();
-            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+            Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             return response()->json([
                 'success' => true,
@@ -369,6 +383,8 @@ class AgenceColisController extends Controller
 
             $colisList = (clone $colisQuery)->get();
 
+            $collectDate = now();
+
             foreach ($colisList as $colis) {
                 if ($colis->code_validation_retrait !== $otp) {
                     return response()->json(['success' => false, 'message' => 'Code de retrait invalide pour certains colis.'], 422);
@@ -376,19 +392,24 @@ class AgenceColisController extends Controller
                 if ($colis->code_validation_retrait_expires_at->isPast()) {
                     return response()->json(['success' => false, 'message' => 'Le code de retrait a expiré.'], 422);
                 }
-            }
 
-            // Marquer comme collectés
-            $colisQuery->update([
-                'is_collected_by_client' => true,
-                'collected_at' => now(),
-                'code_validation_retrait' => null,
-                'code_validation_retrait_expires_at' => null
-            ]);
+                // On utilise les accessors du modèle pour récupérer les valeurs calculées en temps réel
+                $fraisRetard = $colis->potential_frais_retard;
+                $isRetard = $fraisRetard > 0;
+
+                $colis->update([
+                    'is_collected_by_client' => true,
+                    'collected_at' => $collectDate,
+                    'is_retard_retrait' => $isRetard,
+                    'frais_retard_retrait' => $fraisRetard,
+                    'code_validation_retrait' => null,
+                    'code_validation_retrait_expires_at' => null
+                ]);
+            }
 
             // Sync statut expédition
             $expeditionIds = $colisList->pluck('expedition_id')->unique();
-            Expedition::whereIn('id', $expeditionIds)->each(fn (Expedition $e) => $e->syncStatutFromColis());
+            Expedition::whereIn('id', $expeditionIds)->each(fn(Expedition $e) => $e->syncStatutFromColis());
 
             return response()->json([
                 'success' => true,
